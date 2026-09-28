@@ -100,6 +100,26 @@
             border: 2px dashed #ffffff55;
         }
         .card-removed { visibility: hidden; }
+        
+        /* Transición suave para el cambio de turno */
+	.board-wrapper {
+	    padding: 8px;
+	    border-radius: 12px;
+	    transition: all 0.3s ease;
+	    border: 2px solid transparent;
+	}
+
+	/* Estilo para el jugador en turno */
+	.board-wrapper.active-turn {
+	    background-color: rgba(39, 174, 96, 0.15); /* Fondo verde tenue */
+	    border-color: #27ae60;                      /* Borde verde brillante */
+	    box-shadow: 0 0 12px rgba(39, 174, 96, 0.4);
+	}
+
+	.board-wrapper.active-turn .player-label {
+	    color: #2ec771;
+	    font-weight: bold;
+	}
 
         /* ZONA CENTRAL (MAZOS Y ACCIONES) */
         .middle-zone {
@@ -115,23 +135,24 @@
 	.hand-wrapper {
 	    display: flex;
 	    align-items: flex-end;
-	    gap: 6px;
+	    gap: 8px;
 	}
 	
 	.btn-discard-slot {
-	    width: 48px;
-	    height: 70px;
+	    width: 80px;
+	    height: 100px;
 	    background-color: #c62828;
 	    color: white;
-	    border: 2px dashed #ffffff99;
+	    border: 2px solid #ffffff99;
 	    border-radius: 8px;
 	    cursor: pointer;
 	    display: flex;
 	    flex-direction: column;
 	    align-items: center;
 	    justify-content: center;
-	    font-size: 1.1rem;
+	    font-size: 1.8rem;
 	    padding: 0;
+	    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3); 
 	    transition: transform 0.1s ease, background-color 0.2s ease;
 	}
 
@@ -147,16 +168,27 @@
 	    transform: scale(1.05);
 	}
 
+	@keyframes shake {
+	    0%, 100% { transform: translateX(0); }
+	    20%, 60% { transform: translateX(-10px); }
+	    40%, 80% { transform: translateX(10px); }
+	}
+
+	.defeat-effect {
+	    animation: shake 0.5s ease-in-out;
+	}
+	
 	/* Ajuste específico para móviles dentro de tu media query @media (max-width: 600px) */
 	@media (max-width: 600px) {
 	    .btn-discard-slot {
-		width: 42px;
-		height: 60px;
-		font-size: 0.9rem;
+		width: 44px;
+		height: 66px;
+		font-size: 1.1rem;
+		border-radius: 5px;
 	    }
 	    
 	    .btn-discard-slot span {
-		font-size: 0.55rem;
+		font-size: 0.5rem;
 	    }
 	}
 
@@ -252,6 +284,9 @@
 	
     </style>
 </head>
+<!-- Librería para el efecto de confeti -->
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
 <body>
 
     <h1>Skyjo vs IA DQN</h1>
@@ -259,17 +294,16 @@
 	<div class="game-container">
 	    <!-- FILA DE TABLEROS: tú a la izquierda, IA a la derecha -->
 	    <div class="boards-row">
-		<div class="board-wrapper">
+		<div id="wrapper-ia" class="board-wrapper">
 		    <div class="player-label">🤖 IA (Jugador 1)</div>
 		    <div id="board-ia" class="board"></div>
 		</div>
 
-		<div class="board-wrapper">
+		<div id="wrapper-human" class="board-wrapper">
 		    <div class="player-label">👤 Tú (Jugador 0)</div>
 		    <div id="board-human" class="board"></div>
 		</div>
 	    </div>
-
 
 	    <!-- ZONA CENTRAL -->
 	    <div class="middle-zone">
@@ -336,6 +370,18 @@
         function renderGame(state) {
             gameState = state;
 
+	    // Resaltar de quién es el turno
+	    const wrapperHuman = document.getElementById('wrapper-human');
+	    const wrapperIA = document.getElementById('wrapper-ia');
+
+	    if (state.turno_actual === 0) {
+		wrapperHuman.classList.add('active-turn');
+		wrapperIA.classList.remove('active-turn');
+	    } else {
+		wrapperIA.classList.add('active-turn');
+	    	wrapperHuman.classList.remove('active-turn');
+	   }
+
 	   const puedeDescartar = state.turno_actual === 0 && state.fase_turno === 2 && state.action_mask[14];
 	   document.getElementById('btn-descartar').style.display = puedeDescartar ? 'inline-block' : 'none';
 	   
@@ -385,20 +431,33 @@
                 cardHand.innerText = '-';
             }
 
-            // 4. Mensajes de Estado
-            const msg = document.getElementById('status-msg');
-            if (state.game_over) {
-                msg.innerHTML = `🏆 <b>FIN DE PARTIDA</b><br>Tú: ${state.puntos[0]} pts | IA: ${state.puntos[1]} pts`;
-            } else if (state.turno_actual === 0) {
-                if (state.fase_turno === 1) {
-                    msg.innerText = "👉 Tu turno: Roba del Mazo Oculto o toma del Descarte.";
-                } else {
-		    msg.innerText = "👉 Tu turno: elige una casilla para colocar la carta" +
-			(state.action_mask[14] ? " o descártala y voltea tu primera carta oculta." : ".");
-		}
-            } else {
-                msg.innerText = "🤖 Turno de la IA pensando...";
-            }
+	    // 4. Mensajes de Estado y Efectos de Fin de Partida
+	    const msg = document.getElementById('status-msg');
+
+	    if (state.game_over) {
+	    	const humanoGana = state.puntos[0] < state.puntos[1]; // En Skyjo gana quien tenga MENOS puntos
+	    	const empate = state.puntos[0] === state.puntos[1];
+
+	    	if (humanoGana) {
+		    msg.innerHTML = `🎉 <b>¡VICTORIA!</b> 🎉<br>Tú: ${state.puntos[0]} pts | IA: ${state.puntos[1]} pts`;
+		
+		    // Efecto de Confeti para la victoria
+		    confetti({
+		    	particleCount: 100,
+		    	spread: 70,
+		    	origin: { y: 0.6 }
+		    });
+	    	} else if (empate) {
+		    msg.innerHTML = `🤝 <b>¡EMPATE!</b><br>Tú: ${state.puntos[0]} pts | IA: ${state.puntos[1]} pts`;
+	    	} else {
+		    msg.innerHTML = `💀 <b>HAS PERDIDO</b><br>Tú: ${state.puntos[0]} pts | IA: ${state.puntos[1]} pts`;
+		
+		    // Efecto de sacudida en el tablero del jugador al perder
+		    const boardHuman = document.getElementById('wrapper-human');
+		    boardHuman.classList.add('defeat-effect');
+		    setTimeout(() => boardHuman.classList.remove('defeat-effect'), 500);
+	    	}
+	    }
         }
 
 	async function nuevaPartida() {
