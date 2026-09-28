@@ -112,6 +112,54 @@
             border-radius: 12px;
         }
 
+	.hand-wrapper {
+	    display: flex;
+	    align-items: flex-end;
+	    gap: 6px;
+	}
+	
+	.btn-discard-slot {
+	    width: 48px;
+	    height: 70px;
+	    background-color: #c62828;
+	    color: white;
+	    border: 2px dashed #ffffff99;
+	    border-radius: 8px;
+	    cursor: pointer;
+	    display: flex;
+	    flex-direction: column;
+	    align-items: center;
+	    justify-content: center;
+	    font-size: 1.1rem;
+	    padding: 0;
+	    transition: transform 0.1s ease, background-color 0.2s ease;
+	}
+
+	.btn-discard-slot span {
+	    font-size: 0.65rem;
+	    font-weight: bold;
+	    text-transform: uppercase;
+	    margin-top: 2px;
+	}
+
+	.btn-discard-slot:hover {
+	    background-color: #e53935;
+	    transform: scale(1.05);
+	}
+
+	/* Ajuste específico para móviles dentro de tu media query @media (max-width: 600px) */
+	@media (max-width: 600px) {
+	    .btn-discard-slot {
+		width: 42px;
+		height: 60px;
+		font-size: 0.9rem;
+	    }
+	    
+	    .btn-discard-slot span {
+		font-size: 0.55rem;
+	    }
+	}
+
         .deck-container {
             display: flex;
             flex-direction: column;
@@ -230,9 +278,16 @@
 		    <div id="deck-draw" class="card card-hidden" onclick="robarMazo()">🂠</div>
 		</div>
 
-		<div class="deck-container">
-		    <span class="deck-title">En Mano</span>
-		    <div id="card-hand" class="card card-hidden">-</div>
+		<div class="hand-wrapper">
+		    <div class="deck-container">
+		    	<span class="deck-title">En Mano</span>
+		    	<div id="card-hand" class="card card-hidden">-</div>
+		    </div>
+		
+		    <button id="btn-descartar" class="btn-discard-slot" style="display:none" onclick="enviarAccion(14)" title="Descartar y voltear">
+            🗑️    <br><span>Descartar</span>
+        	    </button>
+
 		</div>
 
 		<div class="deck-container">
@@ -243,11 +298,7 @@
 
 	    <!-- PANEL DE ESTADO -->
 	    <div class="status-panel" id="status-msg">Cargando partida...</div>
-	    
-	    <button id="btn-descartar" class="btn-action" style="display:none" onclick="enviarAccion(14)">
-    		Descartar y voltear la primera oculta
-	    </button>
-
+	  
 	    <button class="btn-action" onclick="nuevaPartida()">Reiniciar Partida</button>
 	</div>
 
