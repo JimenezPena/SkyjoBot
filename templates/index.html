@@ -145,21 +145,27 @@
 
         /* Adaptación para pantallas pequeñas / móviles verticales */
 	@media (max-width: 600px) {
+	    html, body {
+		/* Permite scroll vertical únicamente si la pantalla es excesivamente corta */
+		overflow-y: auto;
+		height: auto;
+	    }
+	    
 	    body {
-		padding: 8px;
+		padding: 5px;
 	    }
 
 	    h1 {
-		font-size: 1.4rem;
-		margin: 5px 0 10px 0;
+		font-size: 1.2rem;
+		margin: 2px 0 6px 0;
 	    }
 
 	    .game-container {
-		gap: 12px;
+		gap: 8px;
 	    }
 
 	    .boards-row {
-		gap: 12px;
+		gap: 8px;
 	    }
 
 	    /* Reducimos el padding y el espacio entre cartas del tablero */
@@ -170,9 +176,9 @@
 
 	    /* Reducimos el tamaño de las cartas */
 	    .card {
-		width: 48px;
-		height: 70px;
-		font-size: 1.3rem;
+		width: 44px;
+		height: 66px;
+		font-size: 1.2rem;
 		border-radius: 6px;
 	    }
 
@@ -187,12 +193,12 @@
 
 	    /* Reducimos el padding de la zona central */
 	    .middle-zone {
-		padding: 8px;
+		padding: 6px;
 	    }
 
 	    .status-panel {
-		font-size: 0.95rem;
-		min-height: 32px;
+		font-size: 0.90rem;
+		min-height: 30px;
 	    }
 	}
 	
