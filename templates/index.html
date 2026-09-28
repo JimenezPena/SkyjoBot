@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skyjo AI - Modo Visual</title>
+    <style>
+        :root {
+            --bg-color: #1e272e;
+            --card-neg: #1b365d;   /* -2, -1: Azul Oscuro */
+            --card-zero: #00a3e0;  /* 0: Cyan */
+            --card-low: #2e7d32;   /* 1-4: Verde */
+            --card-mid: #fbc02d;   /* 5-8: Amarillo */
+            --card-high: #c62828;  /* 9-12: Rojo */
+            --card-back: #2c3e50;  /* Carta Oculta */
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 15px;
+        }
+
+        h1 { margin: 5px 0 15px 0; font-size: 1.8rem; }
+
+	.game-container {
+	    display: flex;
+	    flex-direction: column;
+	    align-items: center;
+	    gap: 20px;
+	    width: 100%;
+	    max-width: 760px;
+	}
+
+        /* TABLEROS */
+        .board {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+        }
+        
+	.boards-row {
+	    display: flex;
+	    justify-content: center;
+	    align-items: flex-start;
+	    gap: 20px;
+	    width: 100%;
+	    flex-wrap: wrap;   /* en pantallas estrechas se apilan */
+	}
+
+	.board-wrapper {
+	    display: flex;
+	    flex-direction: column;
+	    align-items: center;
+	}
+	
+        .player-label {
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+        }
+
+        /* CARTAS */
+        .card {
+            width: 65px;
+            height: 95px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.8rem;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            border: 2px solid #ffffff33;
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.1s ease, border-color 0.2s ease;
+        }
+
+        .card:hover { transform: scale(1.05); }
+
+        /* Colores Skyjo */
+        .card-neg { background-color: var(--card-neg); color: #fff; }
+        .card-zero { background-color: var(--card-zero); color: #fff; }
+        .card-low { background-color: var(--card-low); color: #fff; }
+        .card-mid { background-color: var(--card-mid); color: #222; }
+        .card-high { background-color: var(--card-high); color: #fff; }
+        .card-hidden { 
+            background-color: var(--card-back); 
+            color: #7f8c8d;
+            border: 2px dashed #ffffff55;
+        }
+        .card-removed { visibility: hidden; }
+
+        /* ZONA CENTRAL (MAZOS Y ACCIONES) */
+        .middle-zone {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.08);
+            padding: 15px;
+            border-radius: 12px;
+        }
+
+        .deck-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .deck-title { font-size: 0.85rem; color: #aaa; text-transform: uppercase; }
+
+        /* PANEL DE ACCIONES / MENSAJES */
+        .status-panel {
+            text-align: center;
+            font-size: 1.1rem;
+            min-height: 40px;
+        }
+
+        .btn-action {
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .btn-action:hover { background-color: #2ec771; }
+        .btn-action:disabled { background-color: #7f8c8d; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+    <h1>Skyjo vs IA DQN</h1>
+
+	<div class="game-container">
+	    <!-- FILA DE TABLEROS: tú a la izquierda, IA a la derecha -->
+	    <div class="boards-row">
+		<div class="board-wrapper">
+		    <div class="player-label">🤖 IA (Jugador 1)</div>
+		    <div id="board-ia" class="board"></div>
+		</div>
+
+		<div class="board-wrapper">
+		    <div class="player-label">👤 Tú (Jugador 0)</div>
+		    <div id="board-human" class="board"></div>
+		</div>
+	    </div>
+
+
+	    <!-- ZONA CENTRAL -->
+	    <div class="middle-zone">
+		<div class="deck-container">
+		    <span class="deck-title">Mazo</span>
+		    <div id="deck-draw" class="card card-hidden" onclick="robarMazo()">🂠</div>
+		</div>
+
+		<div class="deck-container">
+		    <span class="deck-title">En Mano</span>
+		    <div id="card-hand" class="card card-hidden">-</div>
+		</div>
+
+		<div class="deck-container">
+		    <span class="deck-title">Descarte</span>
+		    <div id="deck-discard" class="card card-hidden" onclick="tomarDescarte()">-</div>
+		</div>
+	    </div>
+
+	    <!-- PANEL DE ESTADO -->
+	    <div class="status-panel" id="status-msg">Cargando partida...</div>
+	    
+	    <button id="btn-descartar" class="btn-action" style="display:none" onclick="enviarAccion(14)">
+    		Descartar y voltear la primera oculta
+	    </button>
+
+	    <button class="btn-action" onclick="nuevaPartida()">Reiniciar Partida</button>
+	</div>
+
+    <script>
+	let gameState = null;
+	let partidaId = 0;              // permite cancelar el bucle de la IA si reinicias
+	const IA_DELAY_MS = 2000;       // retraso entre acciones de la IA
+
+	const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+	async function turnoIA(id) {
+	    while (gameState && !gameState.game_over && gameState.turno_actual === 1) {
+		await sleep(IA_DELAY_MS);
+		if (id !== partidaId) return;   // se reinició la partida mientras esperaba
+
+		const res = await fetch('/api/ia_step', { method: 'POST' });
+		if (!res.ok) return;
+		const data = await res.json();
+		if (id !== partidaId) return;
+
+		renderGame(data);
+	    }
+	}
+	
+        function getCardColorClass(val, vis) {
+            if (vis === -1) return 'card-removed';
+            if (vis === 0) return 'card-hidden';
+            if (val < 0) return 'card-neg';
+            if (val === 0) return 'card-zero';
+            if (val <= 4) return 'card-low';
+            if (val <= 8) return 'card-mid';
+            return 'card-high';
+        }
+
+        function renderGame(state) {
+            gameState = state;
+
+	   const puedeDescartar = state.turno_actual === 0 && state.fase_turno === 2 && state.action_mask[14];
+	   document.getElementById('btn-descartar').style.display = puedeDescartar ? 'inline-block' : 'none';
+	   
+            // 1. Render Tablero IA
+            const boardIA = document.getElementById('board-ia');
+            boardIA.innerHTML = '';
+            for (let f = 0; f < 3; f++) {
+                for (let c = 0; c < 4; c++) {
+                    const val = state.tableros[1][f][c][0];
+                    const vis = state.tableros[1][f][c][1];
+                    const cardDiv = document.createElement('div');
+                    cardDiv.className = `card ${getCardColorClass(val, vis)}`;
+                    cardDiv.innerText = vis === 1 ? val : (vis === 0 ? '?' : '');
+                    boardIA.appendChild(cardDiv);
+                }
+            }
+
+            // 2. Render Tablero Humano
+            const boardHuman = document.getElementById('board-human');
+            boardHuman.innerHTML = '';
+            for (let f = 0; f < 3; f++) {
+                for (let c = 0; c < 4; c++) {
+                    const idx = f * 4 + c;
+                    const val = state.tableros[0][f][c][0];
+                    const vis = state.tableros[0][f][c][1];
+                    const cardDiv = document.createElement('div');
+                    cardDiv.className = `card ${getCardColorClass(val, vis)}`;
+                    cardDiv.innerText = vis === 1 ? val : (vis === 0 ? '?' : '');
+                    cardDiv.onclick = () => hacerAccionCasilla(idx);
+                    boardHuman.appendChild(cardDiv);
+                }
+            }
+
+            // 3. Render Descarte y Carta en Mano
+            const cardDiscard = document.getElementById('deck-discard');
+            if (state.top_descarte !== null) {
+                cardDiscard.className = `card ${getCardColorClass(state.top_descarte, 1)}`;
+                cardDiscard.innerText = state.top_descarte;
+            }
+
+            const cardHand = document.getElementById('card-hand');
+            if (state.carta_en_mano !== null) {
+                cardHand.className = `card ${getCardColorClass(state.carta_en_mano, 1)}`;
+                cardHand.innerText = state.carta_en_mano;
+            } else {
+                cardHand.className = 'card card-hidden';
+                cardHand.innerText = '-';
+            }
+
+            // 4. Mensajes de Estado
+            const msg = document.getElementById('status-msg');
+            if (state.game_over) {
+                msg.innerHTML = `🏆 <b>FIN DE PARTIDA</b><br>Tú: ${state.puntos[0]} pts | IA: ${state.puntos[1]} pts`;
+            } else if (state.turno_actual === 0) {
+                if (state.fase_turno === 1) {
+                    msg.innerText = "👉 Tu turno: Roba del Mazo Oculto o toma del Descarte.";
+                } else {
+		    msg.innerText = "👉 Tu turno: elige una casilla para colocar la carta" +
+			(state.action_mask[14] ? " o descártala y voltea tu primera carta oculta." : ".");
+		}
+            } else {
+                msg.innerText = "🤖 Turno de la IA pensando...";
+            }
+        }
+
+	async function nuevaPartida() {
+	    partidaId++;
+	    const res = await fetch('/api/reset', { method: 'POST' });
+	    const data = await res.json();
+	    renderGame(data);
+	}
+
+	async function enviarAccion(accion) {
+	    const res = await fetch('/api/step', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ action: accion })
+	    });
+	    if (!res.ok) return;
+	    const data = await res.json();
+	    renderGame(data);
+
+	    // Si ahora le toca a la IA, ejecuta sus acciones una a una con retraso
+	    await turnoIA(partidaId);
+	}
+	
+        function tomarDescarte() {
+            if (gameState && gameState.turno_actual === 0 && gameState.fase_turno === 1) {
+                enviarAccion(0);
+            }
+        }
+
+        function robarMazo() {
+            if (gameState && gameState.turno_actual === 0 && gameState.fase_turno === 1) {
+                enviarAccion(1);
+            }
+        }
+
+        function hacerAccionCasilla(idxCasilla) {
+            if (!gameState || gameState.turno_actual !== 0 || gameState.fase_turno !== 2) return;
+            
+            // Acciones 2 a 13 corresponden a reemplazar casilla 0 a 11
+            const accion = idxCasilla + 2;
+            if (gameState.action_mask[accion]) {
+                enviarAccion(accion);
+            }
+        }
+
+        // Iniciar al cargar la página
+        nuevaPartida();
+    </script>
+</body>
+</html>
