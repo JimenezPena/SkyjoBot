@@ -1,20 +1,31 @@
 import os
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+
 import time
 import uuid
 
 import torch
-from flask import Flask, render_template, jsonify, request, session
+torch.set_num_threads(1)
 
+from flask import Flask, render_template, jsonify, request, session
 from skyjo_env import SkyjoEnv
 from skyjo_model import SkyjoDQN, seleccionar_accion_dqn
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "clave-solo-para-local")
 
-device = torch.device("cpu")   # los servidores gratuitos no tienen GPU
-model = SkyjoDQN(num_jugadores=2).to(device)
-model.load_state_dict(torch.load("skyjo_dqn_model_2.0.pth", map_location=device))
-model.eval()
+device = torch.device("cpu")
+
+_model = None
+def get_model():
+    global _model
+    if _model is None:
+        m = SkyjoDQN(num_jugadores=2).to(device)
+        m.load_state_dict(torch.load("skyjo_dqn_model_2.0.pth", map_location=device))
+        m.eval()
+        _model = m
+    return _model
 
 # ---- Partidas en memoria: una por visitante ----
 games = {}                 # id -> {"env": SkyjoEnv, "t": último uso}
@@ -80,7 +91,7 @@ def ia_step():
 
     obs = env.obtener_observacion(1)
     mask = env.get_action_mask(1)
-    accion_ia = seleccionar_accion_dqn(model, obs, mask, device=device)
+    accion_ia = seleccionar_accion_dqn(get_model(), obs, mask, device=device)
     env.step(accion_ia)
     return jsonify(get_state_response(env))
 
