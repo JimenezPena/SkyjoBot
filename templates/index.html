@@ -142,6 +142,60 @@
 
         .btn-action:hover { background-color: #2ec771; }
         .btn-action:disabled { background-color: #7f8c8d; cursor: not-allowed; }
+
+        /* Adaptación para pantallas pequeñas / móviles verticales */
+	@media (max-width: 600px) {
+	    body {
+		padding: 8px;
+	    }
+
+	    h1 {
+		font-size: 1.4rem;
+		margin: 5px 0 10px 0;
+	    }
+
+	    .game-container {
+		gap: 12px;
+	    }
+
+	    .boards-row {
+		gap: 12px;
+	    }
+
+	    /* Reducimos el padding y el espacio entre cartas del tablero */
+	    .board {
+		gap: 5px;
+		padding: 6px;
+	    }
+
+	    /* Reducimos el tamaño de las cartas */
+	    .card {
+		width: 48px;
+		height: 70px;
+		font-size: 1.3rem;
+		border-radius: 6px;
+	    }
+
+	    /* Ajustes para los botones de acción */
+	    .btn-action {
+		padding: 8px 14px;
+		font-size: 0.85rem;
+		margin-top: 5px;
+		width: 90%; /* Para asegurarse de que no sobresalga horizontalmente */
+		max-width: 300px;
+	    }
+
+	    /* Reducimos el padding de la zona central */
+	    .middle-zone {
+		padding: 8px;
+	    }
+
+	    .status-panel {
+		font-size: 0.95rem;
+		min-height: 32px;
+	    }
+	}
+	
     </style>
 </head>
 <body>
