@@ -1,6 +1,14 @@
 import random
 import numpy as np
 
+# ---------------------------------------------------------------------------
+# Constantes globales (v3.0)
+# ---------------------------------------------------------------------------
+VALORES_CARTA = np.arange(-2, 13, dtype=np.float32)                 # -2 ... 12
+TOTALES_INICIALES = np.array([5, 10, 15] + [10] * 12, dtype=np.float32)
+N_ESCALARES = 28       # 4 básicos + 15 conteo + 9 nuevas features
+SHAPING_COEF = 0.1     # escala de la recompensa intermedia basada en potencial
+
 class SkyjoEnv:
     def __init__(self, num_jugadores=2):
         self.num_jugadores = num_jugadores
@@ -67,42 +75,42 @@ class SkyjoEnv:
                         tablero[r, c, 0] = 0
                         tablero[r, c, 1] = -1
 
-    def obtener_vector_conteo(self):
-        """
-        Devuelve un vector de 15 elementos con la proporción de cartas de cada valor
-        que AÚN NO HAN SIDO REVELADAS (están en el mazo o boca abajo).
-        Valores: [-2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-        """
-        # Totales iniciales por carta
-        totales_iniciales = np.array([5, 10, 15] + [10] * 12, dtype=np.float32)
-
-        # Mapeo de valor de carta (-2 a 12) a índice de array (0 a 14)
-        # Ejemplo: valor -2 -> índice 0 | valor 0 -> índice 2 | valor 12 -> índice 14
-        conteo_vistas = np.zeros(15, dtype=np.float32)
-
-        # 1. Contar cartas en el mazo de descartes
+    def _conteo_restantes(self):
+        """Nº de cartas de cada valor que AÚN NO se han visto (mazo + boca abajo)."""
+        vistas = np.zeros(15, dtype=np.float32)
         for carta in self.descartes:
-            idx = carta + 2
-            conteo_vistas[idx] += 1.0
-
-        # 2. Contar cartas visibles en los tableros de TODOS los jugadores
+            vistas[int(carta) + 2] += 1.0
         for j in range(self.num_jugadores):
-            tablero = self.tableros[j]
-            visibles = tablero[:, :, 0][tablero[:, :, 1] == 1]
-            for carta in visibles:
-                idx = carta + 2
-                conteo_vistas[idx] += 1.0
-
-        # 3. Contar carta en mano si existe
+            t = self.tableros[j]
+            for carta in t[:, :, 0][t[:, :, 1] == 1]:
+                vistas[int(carta) + 2] += 1.0
         if self.carta_en_mano is not None:
-            idx = self.carta_en_mano + 2
-            conteo_vistas[idx] += 1.0
+            vistas[int(self.carta_en_mano) + 2] += 1.0
+        return np.maximum(TOTALES_INICIALES - vistas, 0.0)
+ 
+    def obtener_vector_conteo(self):
+        """Proporción de cartas de cada valor aún no reveladas (15 elementos)."""
+        return self._conteo_restantes() / TOTALES_INICIALES
 
-        # Proporción de cartas que quedan OCULTAS en el juego (Mazo + Boca abajo)
-        cartas_restantes = totales_iniciales - conteo_vistas
-        proporcion_restantes = cartas_restantes / totales_iniciales
-
-        return proporcion_restantes
+    def _valor_esperado_oculta(self, conteo=None):
+        """Valor medio esperado de una carta desconocida, según lo que aún no se ha visto."""
+        if conteo is None:
+            conteo = self._conteo_restantes()
+        total = float(conteo.sum())
+        if total <= 0:
+            return 5.0
+        return float((conteo * VALORES_CARTA).sum() / total)
+ 
+    def _puntos_estimados(self, jugador_id, valor_esperado):
+        """Suma visible + (nº ocultas x valor esperado). Solo usa información pública."""
+        t = self.tableros[jugador_id]
+        visibles = float(t[:, :, 0][t[:, :, 1] == 1].sum())
+        n_ocultas = int(np.sum(t[:, :, 1] == 0))
+        return visibles + n_ocultas * valor_esperado
+ 
+    def _potencial(self, jugador_id):
+        """Potencial para reward shaping: menos puntos estimados = mejor."""
+        return -self._puntos_estimados(jugador_id, self._valor_esperado_oculta())
 
     def obtener_observacion(self, jugador_id=None):
         if jugador_id is None:
@@ -112,23 +120,49 @@ class SkyjoEnv:
         indices_ordenados = [(jugador_id + i) % num_j for i in range(num_j)]
         tableros_rotados = self.tableros[indices_ordenados]
 
-        # Normalización del tablero en rango [-1.0, 1.0]
-        valores_tableros = ((tableros_rotados[:, :, :, 0] - 5.0) / 7.0).astype(np.float32)
+        # --- FIX v3.0: los valores de cartas NO visibles se ocultan (0.0) ---
+        visible_mask = (tableros_rotados[:, :, :, 1] == 1)
+        valores_tableros = np.where(
+            visible_mask, (tableros_rotados[:, :, :, 0] - 5.0) / 7.0, 0.0
+        ).astype(np.float32)
         visibilidad_tableros = tableros_rotados[:, :, :, 1].astype(np.float32)
 
-        # Escalares de estado
+        # Escalares básicos
         c_mano = ((float(self.carta_en_mano) - 5.0) / 7.0) if self.carta_en_mano is not None else 0.0
         top_descarte = ((float(self.descartes[-1]) - 5.0) / 7.0) if len(self.descartes) > 0 else 0.0
         fase = float(self.fase_turno) / 2.0
         origen_flag = 1.0 if self.origen_robo == 'DESCARTE' else 0.0
-
         escalares_basicos = np.array([c_mano, top_descarte, fase, origen_flag], dtype=np.float32)
 
-        # Vector de conteo de cartas (15 posiciones)
-        vector_conteo = self.obtener_vector_conteo()
-
-        # Unir escalares básicos + conteo de cartas -> 19 características escalares
-        escalares = np.concatenate([escalares_basicos, vector_conteo])
+        # Conteo de cartas no vistas
+        conteo = self._conteo_restantes()
+        vector_conteo = conteo / TOTALES_INICIALES
+        e_oculta = self._valor_esperado_oculta(conteo)
+ 
+        # --- Features nuevas (todas con información pública) ---
+        rivales = [j for j in range(num_j) if j != jugador_id]
+        ocultas = {j: int(np.sum(self.tableros[j, :, :, 1] == 0)) for j in range(num_j)}
+        ocultas_rivales = [ocultas[j] for j in rivales]
+        est_propio = self._puntos_estimados(jugador_id, e_oculta)
+        est_rivales = [self._puntos_estimados(j, e_oculta) for j in rivales]
+ 
+        alguien_cerro = 1.0 if self.cerrador_id is not None else 0.0
+        turnos_rest = max(self.turnos_restantes, 0) / 3.0
+ 
+        extra = np.array([
+            alguien_cerro,                                            # 19
+            turnos_rest,                                              # 20
+            ocultas[jugador_id] / 12.0,                               # 21
+            float(np.mean(ocultas_rivales)) / 12.0,                   # 22
+            min(ocultas_rivales) / 12.0,                              # 23
+            self._calcular_puntos_tablero(jugador_id) / 50.0,         # 24
+            est_propio / 50.0,                                        # 25
+            float(np.clip((min(est_rivales) - est_propio) / 30.0, -2.0, 2.0)),  # 26
+            len(self.mazo) / 150.0,                                   # 27
+        ], dtype=np.float32)
+ 
+        escalares = np.concatenate([escalares_basicos, vector_conteo, extra]).astype(np.float32)
+        assert escalares.shape[0] == N_ESCALARES
 
         return {
             'valores_tableros': valores_tableros,
@@ -201,7 +235,7 @@ class SkyjoEnv:
         # FASE 2
         elif self.fase_turno == 2:
             carta_robada = self.carta_en_mano
-            puntos_antes = self._calcular_puntos_tablero(j_id)
+            potencial_antes = self._potencial(j_id)
 
             # Colocar carta en el tablero (Acciones 2 a 13)
             if 2 <= action <= 13:
@@ -226,14 +260,13 @@ class SkyjoEnv:
 
             # Procesar triadas de columnas y actualizar puntos
             self.procesar_triples_columna(j_id)
-            puntos_despues = self._calcular_puntos_tablero(j_id)
-
-            # Recompensa basada en delta de puntos
-            recompensa += (puntos_antes - puntos_despues) * 0.1
 
             self.carta_en_mano = None
             self.origen_robo = None
 
+            # Shaping por potencial: Phi = -(puntos visibles + ocultas x valor esperado)
+            recompensa += SHAPING_COEF * (self._potencial(j_id) - potencial_antes)
+ 
             # --- CONTROL CORREGIDO DEL ÚLTIMO TURNO ---
             cartas_ocultas = np.sum(tablero[:, :, 1] == 0)
 

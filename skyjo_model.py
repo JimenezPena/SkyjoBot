@@ -5,6 +5,7 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 
+from skyjo_env import N_ESCALARES
 
 class SkyjoDQN(nn.Module):
     """
@@ -34,9 +35,10 @@ class SkyjoDQN(nn.Module):
         # ------------------------------------------------------------------
         # 2. Extractor de características escalares (Información del turno)
         # ------------------------------------------------------------------
-        # Entrada escalar: [carta_en_mano, top_descarte, fase_turno, origen_robo_flag + 15 de conteo de cartas] -> 19 características
+        # Entrada escalar: [carta_en_mano, top_descarte, fase_turno, origen_robo_flag + 15 de conteo de cartas] 
+        #                            [+ 9 features de contexto -> 28 características:  (N_ESCALARES)                                 ]
         self.fc_scalars = nn.Sequential(
-            nn.Linear(19, 64),
+            nn.Linear(N_ESCALARES, 64),
             nn.ReLU()
         )
 
@@ -57,7 +59,7 @@ class SkyjoDQN(nn.Module):
         obs_dict es un diccionario o tupla con:
           - 'valores_tableros': Tensor [Batch, Num_Jugadores, 3, 4]
           - 'visibilidad_tableros': Tensor [Batch, Num_Jugadores, 3, 4]
-          - 'escalares': Tensor [Batch, 19] -> (carta_en_mano, top_descartes, fase, origen_robo + 15 conteo)
+          - 'escalares': Tensor [Batch, N_ESCALARES=28] -> (carta_en_mano, top_descartes, fase, origen_robo + 15 conteo)
         """
         val_tableros = obs_dict['valores_tableros']       # Shape: [B, N, 3, 4]
         vis_tableros = obs_dict['visibilidad_tableros']   # Shape: [B, N, 3, 4]

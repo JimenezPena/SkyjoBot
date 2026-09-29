@@ -8,6 +8,8 @@ import uuid
 import torch
 torch.set_num_threads(1)
 
+import numpy as np
+
 from flask import Flask, render_template, jsonify, request, session
 from skyjo_env import SkyjoEnv
 from skyjo_model import SkyjoDQN, seleccionar_accion_dqn
@@ -22,7 +24,7 @@ def get_model():
     global _model
     if _model is None:
         m = SkyjoDQN(num_jugadores=2).to(device)
-        m.load_state_dict(torch.load("skyjo_dqn_model_2.0.pth", map_location=device))
+        m.load_state_dict(torch.load("skyjo_dqn_model_3.0.pth", map_location=device))
         m.eval()
         _model = m
     return _model
@@ -30,6 +32,12 @@ def get_model():
 # ---- Partidas en memoria: una por visitante ----
 games = {}                 # id -> {"env": SkyjoEnv, "t": último uso}
 MAX_EDAD = 60 * 60         # borra partidas inactivas tras 1 hora
+
+def tableros_publicos(env):
+    """Tableros sin los valores de las cartas boca abajo."""
+    t = env.tableros.copy()
+    t[:, :, :, 0] = np.where(t[:, :, :, 1] == 1, t[:, :, :, 0], 0)
+    return t.tolist()
 
 def get_env():
     ahora = time.time()
@@ -47,7 +55,7 @@ def get_env():
 def get_state_response(env):
     puntos = env.calcular_puntuaciones_finales() if env.game_over else None
     return {
-        "tableros": env.tableros.tolist(),
+        "tableros": tableros_publicos(env),
         "turno_actual": int(env.turno_actual),
         "fase_turno": int(env.fase_turno),
         "origen_robo": env.origen_robo,
@@ -78,6 +86,10 @@ def step_game():
     if env.turno_actual != 0:
         return jsonify({"error": "No es tu turno"}), 400
 
+    mask = env.get_action_mask(0)
+    if not isinstance(accion, int) or not (0 <= accion < len(mask)) or not mask[accion]:
+        return jsonify({"error": "Acción no permitida"}), 400
+    
     env.step(accion)
     return jsonify(get_state_response(env))
 
