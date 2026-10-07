@@ -318,7 +318,7 @@
 		    	<div id="card-hand" class="card card-hidden">-</div>
 		    </div>
 		
-		    <button id="btn-descartar" class="btn-discard-slot" style="display:none" onclick="enviarAccion(14)" title="Descartar y voltear">
+		    <button id="btn-descartar" class="btn-discard-slot" style="display:none" onclick="iniciarDescarte()" title="Descartar y voltear">
             🗑️    <br><span>Descartar</span>
         	    </button>
 
@@ -340,6 +340,7 @@
 	let gameState = null;
 	let partidaId = 0;              // permite cancelar el bucle de la IA si reinicias
 	const IA_DELAY_MS = 2000;       // retraso entre acciones de la IA
+	let modoDescarte = false;       // controla si estamos eligiendo qué carta voltear
 
 	const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -381,8 +382,11 @@
 		wrapperIA.classList.add('active-turn');
 	    	wrapperHuman.classList.remove('active-turn');
 	   }
-
-	   const puedeDescartar = state.turno_actual === 0 && state.fase_turno === 2 && state.action_mask[14];
+	   
+	   modoDescarte = false; // Resetear el modo al cargar un nuevo estado
+	   
+	   // Un jugador puede descartar si está en la fase 2 y tiene acciones válidas del 14 al 25
+	   const puedeDescartar = state.turno_actual === 0 && state.fase_turno === 2 && state.action_mask.slice(14, 26).some(m => m);
 	   document.getElementById('btn-descartar').style.display = puedeDescartar ? 'inline-block' : 'none';
 	   
             // 1. Render Tablero IA
@@ -481,6 +485,26 @@
 	    await turnoIA(partidaId);
 	}
 	
+	function iniciarDescarte() {
+	    modoDescarte = true;
+
+	    // 1. Mover visualmente la carta de la mano al mazo de descartes
+	    const cardHand = document.getElementById('card-hand');
+	    const cardDiscard = document.getElementById('deck-discard');
+
+	    cardDiscard.className = cardHand.className;
+	    cardDiscard.innerText = cardHand.innerText;
+
+	    cardHand.className = 'card card-hidden';
+	    cardHand.innerText = '-';
+
+	    // 2. Ocultar el botón de papelera para evitar doble clic
+	    document.getElementById('btn-descartar').style.display = 'none';
+
+	    // 3. Dar feedback visual al usuario en el panel de estado
+	    document.getElementById('status-msg').innerHTML = "<b>👇 Haz clic en una de tus cartas ocultas para voltearla</b>";
+	}
+	
         function tomarDescarte() {
             if (gameState && gameState.turno_actual === 0 && gameState.fase_turno === 1) {
                 enviarAccion(0);
@@ -494,14 +518,22 @@
         }
 
         function hacerAccionCasilla(idxCasilla) {
-            if (!gameState || gameState.turno_actual !== 0 || gameState.fase_turno !== 2) return;
-            
-            // Acciones 2 a 13 corresponden a reemplazar casilla 0 a 11
-            const accion = idxCasilla + 2;
-            if (gameState.action_mask[accion]) {
-                enviarAccion(accion);
-            }
-        }
+	    if (!gameState || gameState.turno_actual !== 0 || gameState.fase_turno !== 2) return;
+	    
+	    if (modoDescarte) {
+		// Acciones 14 a 25: Descartar la carta robada y revelar la casilla 0 a 11
+		const accion = idxCasilla + 14;
+		if (gameState.action_mask[accion]) {
+		    enviarAccion(accion);
+		}
+	    } else {
+		// Acciones 2 a 13: Reemplazar la casilla 0 a 11 con la carta de la mano
+		const accion = idxCasilla + 2;
+		if (gameState.action_mask[accion]) {
+		    enviarAccion(accion);
+		}
+	    }
+	}
 
         // Iniciar al cargar la página
         nuevaPartida();

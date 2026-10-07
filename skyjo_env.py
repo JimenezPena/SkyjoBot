@@ -2,11 +2,12 @@ import random
 import numpy as np
 
 # ---------------------------------------------------------------------------
-# Constantes globales (v3.0)
+# Constantes globales (v4.0)
 # ---------------------------------------------------------------------------
 VALORES_CARTA = np.arange(-2, 13, dtype=np.float32)                 # -2 ... 12
 TOTALES_INICIALES = np.array([5, 10, 15] + [10] * 12, dtype=np.float32)
 N_ESCALARES = 28       # 4 básicos + 15 conteo + 9 nuevas features
+N_ACCIONES = 26          # 0-1 robar | 2-13 colocar en casilla | 14-25 descartar (mazo) y destapar casilla
 SHAPING_COEF = 0.1     # escala de la recompensa intermedia basada en potencial
 
 class SkyjoEnv:
@@ -250,13 +251,12 @@ class SkyjoEnv:
                 if visibilidad_anterior != -1:
                     self.descartes.append(valor_anterior)
 
-            # Descartar carta robada del mazo y destapar una oculta (Acción 14)
-            elif action == 14 and self.origen_robo == 'MAZO':
+            # Descartar carta robada del mazo y destapar la oculta ELEGIDA (Acciones 14 a 25)
+            elif 14 <= action <= 25 and self.origen_robo == 'MAZO':
+                cell_idx = action - 14
+                f, c = divmod(cell_idx, 4)
                 self.descartes.append(carta_robada)
-                indices_ocultos = np.argwhere(tablero[:, :, 1] == 0)
-                if len(indices_ocultos) > 0:
-                    f, c = indices_ocultos[0]
-                    tablero[f, c, 1] = 1
+                tablero[f, c, 1] = 1   # La máscara garantiza que la casilla estaba oculta
 
             # Procesar triadas de columnas y actualizar puntos
             self.procesar_triples_columna(j_id)
@@ -290,8 +290,8 @@ class SkyjoEnv:
         if jugador_id is None:
             jugador_id = self.turno_actual
 
-        # Ampliamos la máscara a 15 posiciones
-        mask = np.zeros(15, dtype=bool)
+        # Máscara de N_ACCIONES (26) posiciones
+        mask = np.zeros(N_ACCIONES, dtype=bool)
         tablero = self.tableros[jugador_id]
 
         if self.fase_turno == 1:
@@ -307,10 +307,13 @@ class SkyjoEnv:
                 if tablero[r, c, 1] != -1:  # Casilla no eliminada
                     mask[cell_idx + 2] = True
 
-            # Acción 14: Descartar y destapar oculta (solo si robó del mazo)
-            cartas_ocultas = np.sum(tablero[:, :, 1] == 0)
-            if self.origen_robo == 'MAZO' and cartas_ocultas > 0:
-                mask[14] = True
+            # Acciones 14 a 25: descartar la carta robada del MAZO y destapar la casilla
+            # oculta elegida (14 + cell_idx). Solo válidas para casillas aún ocultas.
+            if self.origen_robo == 'MAZO':
+                for cell_idx in range(12):
+                    r, c = divmod(cell_idx, 4)
+                    if tablero[r, c, 1] == 0:
+                        mask[cell_idx + 14] = True
 
             return mask
             

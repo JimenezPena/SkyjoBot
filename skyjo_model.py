@@ -5,7 +5,7 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 
-from skyjo_env import N_ESCALARES
+from skyjo_env import N_ESCALARES, N_ACCIONES
 
 class SkyjoDQN(nn.Module):
     """
@@ -14,7 +14,7 @@ class SkyjoDQN(nn.Module):
       - Tableros de los jugadores (Valores y Visibilidad).
       - Información escalar (Carta en mano, fase del turno, origen de robo).
     Salida:
-      - 15 Q-values (uno por cada acción posible).
+      - 26 Q-values (uno por cada acción posible).
     """
     def __init__(self, num_jugadores=2):
         super(SkyjoDQN, self).__init__()
@@ -50,8 +50,8 @@ class SkyjoDQN(nn.Module):
         self.fc1 = nn.Linear(combined_size, 256)
         self.fc2 = nn.Linear(256, 128)
 
-        # Salida: 15 Q-Values
-        self.q_values = nn.Linear(128, 15)
+        # Salida: N_ACCIONES (26) Q-Values
+        self.q_values = nn.Linear(128, N_ACCIONES)
 
     def forward(self, obs_dict):
         """
@@ -91,7 +91,7 @@ class SkyjoDQN(nn.Module):
         h = F.relu(self.fc1(merged))
         h = F.relu(self.fc2(h))
 
-        # Emitir los 13 Q-Values
+        # Emitir los 26 Q-Values
         out_q_values = self.q_values(h)
         return out_q_values
         
