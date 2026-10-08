@@ -24,7 +24,7 @@ def get_model():
     global _model
     if _model is None:
         m = SkyjoDQN(num_jugadores=2).to(device)
-        m.load_state_dict(torch.load("skyjo_dqn_model_4.0.pth", map_location=device))
+        m.load_state_dict(torch.load("skyjo_dqn_model_4.1.pth", map_location=device))
         m.eval()
         _model = m
     return _model

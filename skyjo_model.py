@@ -43,15 +43,29 @@ class SkyjoDQN(nn.Module):
         )
 
         # ------------------------------------------------------------------
-        # 3. Cabeza Dueling DQN / Capas Densas Combinadas
+        # 3. Representación Oculta Común
         # ------------------------------------------------------------------
         combined_size = total_boards_feature_size + 64
 
         self.fc1 = nn.Linear(combined_size, 256)
         self.fc2 = nn.Linear(256, 128)
 
-        # Salida: N_ACCIONES (26) Q-Values
-        self.q_values = nn.Linear(128, N_ACCIONES)
+        # ------------------------------------------------------------------
+        # 4. Arquitectura Dueling DQN (Cabezas Separadas)
+        # ------------------------------------------------------------------
+        # Stream de Valor V(s): Estima la calidad del estado global [Batch, 1]
+        self.value_stream = nn.Sequential(
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 1)
+        )
+
+        # Stream de Ventaja A(s, a): Estima la ventaja relativa de cada acción [Batch, 26]
+        self.advantage_stream = nn.Sequential(
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, N_ACCIONES)
+        )
 
     def forward(self, obs_dict):
         """
@@ -92,7 +106,15 @@ class SkyjoDQN(nn.Module):
         h = F.relu(self.fc2(h))
 
         # Emitir los 26 Q-Values
-        out_q_values = self.q_values(h)
+        #out_q_values = self.q_values(h)
+        
+        # Cálculo de las ramas Dueling
+        values = self.value_stream(h)        # Shape: [B, 1]
+        advantages = self.advantage_stream(h) # Shape: [B, N_ACCIONES]
+
+        # Combinación centrada en la media: Q(s,a) = V(s) + (A(s,a) - mean(A(s,a')))
+        out_q_values = values + (advantages - advantages.mean(dim=1, keepdim=True))
+
         return out_q_values
         
 
