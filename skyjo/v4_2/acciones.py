@@ -1,14 +1,16 @@
+import torch
 import random
 import numpy as np
-import torch
 
 def seleccionar_accion(model, observacion, env, epsilon, device="cpu"):
     mask = env.get_action_mask(env.turno_actual)
     acciones_validas = np.where(mask)[0]
 
+    # Exploración
     if random.random() < epsilon:
         return random.choice(acciones_validas)
 
+    # Explotación
     model.eval()
     with torch.no_grad():
         obs_tensor = {
@@ -16,6 +18,7 @@ def seleccionar_accion(model, observacion, env, epsilon, device="cpu"):
             'visibilidad_tableros': torch.FloatTensor(observacion['visibilidad_tableros']).unsqueeze(0).to(device),
             'escalares': torch.FloatTensor(observacion['escalares']).unsqueeze(0).to(device)
         }
+
         q_values = model(obs_tensor)
 
     mask_tensor = torch.BoolTensor(mask).to(device)

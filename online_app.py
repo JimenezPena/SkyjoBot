@@ -11,26 +11,26 @@ torch.set_num_threads(1)
 import numpy as np
 
 from flask import Flask, render_template, jsonify, request, session
-from skyjo_env import SkyjoEnv
-from skyjo_model import SkyjoDQN, seleccionar_accion_dqn
+from skyjo.v4_2 import SkyjoEnv            # motor de juego (las reglas son iguales en todas las versiones)
+from skyjo.niveles import cargar_nivel, listar_niveles
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "clave-solo-para-local")
 
 device = torch.device("cpu")
 
-_model = None
-def get_model():
-    global _model
-    if _model is None:
-        m = SkyjoDQN(num_jugadores=2).to(device)
-        m.load_state_dict(torch.load("skyjo_dqn_model_4.1.pth", map_location=device))
-        m.eval()
-        _model = m
-    return _model
+# Oponente por defecto (el modelo 4.1 de siempre). Se puede cambiar con la variable de entorno SKYJO_NIVEL
+# o por partida con {"nivel": "..."} en POST /api/reset (opcional: index.html no lo necesita).
+NIVEL_POR_DEFECTO = os.environ.get("SKYJO_NIVEL", "dqn_4.1")
+
+_agentes = {}
+def get_agente(nivel):
+    if nivel not in _agentes:
+        _agentes[nivel] = cargar_nivel(nivel, device=device)
+    return _agentes[nivel]
 
 # ---- Partidas en memoria: una por visitante ----
-games = {}                 # id -> {"env": SkyjoEnv, "t": último uso}
+games = {}                 # id -> {"env": SkyjoEnv, "nivel": str, "t": último uso}
 MAX_EDAD = 60 * 60         # borra partidas inactivas tras 1 hora
 
 def tableros_publicos(env):
@@ -39,7 +39,7 @@ def tableros_publicos(env):
     t[:, :, :, 0] = np.where(t[:, :, :, 1] == 1, t[:, :, :, 0], 0)
     return t.tolist()
 
-def get_env():
+def get_game():
     ahora = time.time()
     for k in [k for k, g in games.items() if ahora - g["t"] > MAX_EDAD]:
         del games[k]
@@ -48,9 +48,12 @@ def get_env():
     if gid not in games:
         gid = uuid.uuid4().hex
         session["gid"] = gid
-        games[gid] = {"env": SkyjoEnv(num_jugadores=2), "t": ahora}
+        games[gid] = {"env": SkyjoEnv(num_jugadores=2), "nivel": NIVEL_POR_DEFECTO, "t": ahora}
     games[gid]["t"] = ahora
-    return games[gid]["env"]
+    return games[gid]
+
+def get_env():
+    return get_game()["env"]
 
 def get_state_response(env):
     puntos = env.calcular_puntuaciones_finales() if env.game_over else None
@@ -70,9 +73,19 @@ def get_state_response(env):
 def index():
     return render_template('index.html')
 
+@app.route('/api/niveles', methods=['GET'])
+def niveles():
+    return jsonify({"niveles": list(listar_niveles()), "por_defecto": NIVEL_POR_DEFECTO})
+
 @app.route('/api/reset', methods=['POST'])
 def reset_game():
-    env = get_env()
+    game = get_game()
+    nivel = (request.get_json(silent=True) or {}).get('nivel')
+    if nivel is not None:
+        if nivel not in listar_niveles():
+            return jsonify({"error": "Nivel desconocido"}), 400
+        game["nivel"] = nivel
+    env = game["env"]
     env.reset()
     return jsonify(get_state_response(env))
 
@@ -89,13 +102,14 @@ def step_game():
     mask = env.get_action_mask(0)
     if not isinstance(accion, int) or not (0 <= accion < len(mask)) or not mask[accion]:
         return jsonify({"error": "Acción no permitida"}), 400
-    
+
     env.step(accion)
     return jsonify(get_state_response(env))
 
 @app.route('/api/ia_step', methods=['POST'])
 def ia_step():
-    env = get_env()
+    game = get_game()
+    env = game["env"]
     if env.game_over:
         return jsonify({"error": "Partida terminada"}), 400
     if env.turno_actual != 1:
@@ -103,7 +117,9 @@ def ia_step():
 
     obs = env.obtener_observacion(1)
     mask = env.get_action_mask(1)
-    accion_ia = seleccionar_accion_dqn(get_model(), obs, mask, device=device)
+    accion_ia = get_agente(game["nivel"])(env, obs, mask)
+    if not (0 <= accion_ia < len(mask)) or not mask[accion_ia]:      # red de seguridad: nunca bloquear la partida
+        accion_ia = int(np.random.choice(np.flatnonzero(mask)))
     env.step(accion_ia)
     return jsonify(get_state_response(env))
 

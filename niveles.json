@@ -1,0 +1,5 @@
+{
+  "heuristico": {"tipo": "heuristico"},
+  "dqn_4.1": {"tipo": "dqn", "version": "v4_2", "modelo": "modelos/v4_1.pth"},
+  "aleatorio": {"tipo": "aleatorio"}
+}
