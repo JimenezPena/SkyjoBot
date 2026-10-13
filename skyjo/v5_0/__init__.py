@@ -2,6 +2,7 @@
 VERSION = "v5_0"
 from .env import SkyjoEnv, N_ACCIONES, N_ESCALARES, N_PLANOS_PROPIO
 from .model import SkyjoDQN
+from .agente import AgenteDQN
 from .buffer import ReplayBuffer, NStepCollector
 from .acciones import seleccionar_accion, accion_greedy
 from .agents import (agente_aleatorio, agente_heuristico, agente_dqn,

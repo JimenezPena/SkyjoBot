@@ -9,7 +9,12 @@ import random
 import numpy as np
 
 
-from skyjo.heuristico import agente_aleatorio, agente_heuristico   # baseline compartido
+from skyjo.heuristico import AgenteAleatorio, AgenteHeuristico
+from skyjo.vista import agente_env
+
+# Versiones f(env, obs, mask) de los agentes de la vista (las usa el duelo del trainer)
+agente_aleatorio = agente_env(AgenteAleatorio())
+agente_heuristico = agente_env(AgenteHeuristico())
 
 
 def agente_dqn(model, device="cpu"):

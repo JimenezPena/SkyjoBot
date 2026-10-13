@@ -21,13 +21,17 @@ def accion_greedy(model, obs, mask, device="cpu"):
     q_values[0, ~torch.BoolTensor(mask).to(device)] = -1e9
     return int(torch.argmax(q_values, dim=1).item())
 
-from skyjo.heuristico import agente_aleatorio, agente_heuristico   # baseline compartido
+from .agente import AgenteDQN
+from skyjo.heuristico import AgenteAleatorio, AgenteHeuristico
+from skyjo.vista import agente_env
+
+# Versiones f(env, obs, mask) de los agentes de la vista (las usa el duelo del trainer)
+agente_aleatorio = agente_env(AgenteAleatorio())
+agente_heuristico = agente_env(AgenteHeuristico())
 
 
 def agente_dqn(model, device="cpu"):
-    def _a(env, obs, mask):
-        return accion_greedy(model, obs, mask, device)
-    return _a
+    return agente_env(AgenteDQN(model, device))
 
 def duelo(agente_a, agente_b, n_partidas=200, max_pasos=2000):
     """A vs B alternando asiento. Devuelve métricas desde el punto de vista de A."""

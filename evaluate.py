@@ -1,6 +1,7 @@
 """Evaluación.
-  python evaluate.py torneo --version v5_0 --ckpt-dir checkpoints_5.0   # cada checkpoint vs heurístico
-  python evaluate.py niveles -n 300                                      # todos contra todos (niveles.json)
+  python evaluate.py torneo --version v4_2 --ckpt-dir checkpoints_4.2        # cada checkpoint vs heurístico
+  python evaluate.py niveles -n 300                                           # niveles de dos en dos (niveles.json)
+  python evaluate.py partida -n 240 heuristico aleatorio heuristico aleatorio # N asientos, rotando asientos
 """
 import argparse
 import glob
@@ -10,7 +11,7 @@ import re
 import torch
 
 from skyjo.niveles import cargar_nivel, listar_niveles
-from skyjo.v5_0.agents import duelo, imprimir_duelo      # entorno árbitro (las reglas son iguales en todas las versiones)
+from skyjo.partida import evaluar, imprimir_evaluacion
 
 
 def torneo(version, ckpt_dir, n, device):
@@ -39,11 +40,14 @@ def torneo(version, ckpt_dir, n, device):
 
 def niveles(n, device, ruta):
     nombres = list(listar_niveles(ruta))
-    ag = {k: cargar_nivel(k, device, ruta) for k in nombres}
-    print(f"== Todos contra todos ({n} partidas por duelo, alternando asiento) ==")
     for i, a in enumerate(nombres):
         for b in nombres[i + 1:]:
-            imprimir_duelo(f"{a} vs {b}", duelo(ag[a], ag[b], n))
+            print(f"\n== {a} vs {b} ==")
+            imprimir_evaluacion(evaluar([cargar_nivel(a, device, ruta), cargar_nivel(b, device, ruta)], n))
+
+
+def partida(n, device, asientos, ruta):
+    imprimir_evaluacion(evaluar([cargar_nivel(a, device, ruta) for a in asientos], n))
 
 
 if __name__ == "__main__":
@@ -53,12 +57,17 @@ if __name__ == "__main__":
     t.add_argument('--version', required=True)
     t.add_argument('--ckpt-dir', required=True)
     t.add_argument('-n', type=int, default=500)
-    s = sub.add_parser('niveles')
-    s.add_argument('-n', type=int, default=300)
-    s.add_argument('--niveles', default=None, help='ruta a un niveles.json alternativo')
+    for nombre in ('niveles', 'partida'):
+        s = sub.add_parser(nombre)
+        s.add_argument('-n', type=int, default=300)
+        s.add_argument('--niveles', default=None, help='ruta a un niveles.json alternativo')
+        if nombre == 'partida':
+            s.add_argument('asientos', nargs='+', help='nombres de nivel, uno por asiento (2-8)')
     a = ap.parse_args()
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     if a.cmd == 'torneo':
         torneo(a.version, a.ckpt_dir, a.n, dev)
-    else:
+    elif a.cmd == 'niveles':
         niveles(a.n, dev, a.niveles)
+    else:
+        partida(a.n, dev, a.asientos, a.niveles)

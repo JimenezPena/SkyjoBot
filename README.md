@@ -8,7 +8,10 @@ skyjo/
   v4_2/         Dueling Double DQN, 26 acciones (modelo 4.1 + heurístico y duelos cada 2500 episodios)
   v5_0/         observación con columnas, dueling enmascarado, n-step, soft update (en desarrollo)
   niveles.py    registro de niveles: cargar_nivel("nombre") -> agente válido con el entorno de cualquier versión
-  arena.py      permite enfrentar modelos de versiones distintas
+  vista.py      vista pública de un asiento (solo información visible) y adaptadores
+  agentes.py    interfaz de agente agente(vista)->acción: humano, ruido epsilon
+  partida.py    jugar_partida / evaluar con 2-8 asientos (mezclas de humanos, modelos y heurístico)
+  consola.py    partida por consola: python -m skyjo.consola humano heuristico ...
 niveles.json    niveles disponibles (heuristico, dqn_4.2, aleatorio, ...)
 modelos/        pesos finales que usan los niveles
 online_app.py + templates/index.html   la web
@@ -43,6 +46,19 @@ El oponente por defecto es `dqn_4.2`; se cambia con la variable de entorno `SKYJ
 `POST /api/reset {"nivel": "heuristico"}` (opcional; `GET /api/niveles` lista los disponibles).
 `python -m pytest -q tests` juega partidas completas por la API con cada nivel y comprueba que `index.html` solo usa
 rutas que existen y que no se filtran cartas ocultas.
+
+## Vista pública y partidas con N jugadores
+
+Cada agente decide a partir de una `Vista` (`skyjo/vista.py`): sus cartas y las visibles de los demás, con los tableros
+girados al asiento del agente (0 = yo, 1 = izquierda, que recibe mis descartes, n-1 = derecha, de quien viene el
+descarte), historial de descartes, nº de jugadores y cartas ocultas. Nunca contiene cartas ocultas ajenas.
+La observación del modelo 4.2 se construye solo desde la vista (idéntica a la anterior). Los DQN 4.x/5.0 solo juegan con 2
+asientos; el heurístico y el aleatorio, con 2-8.
+
+```bash
+python -m skyjo.consola humano heuristico heuristico heuristico
+python evaluate.py partida heuristico dqn_4.2 -n 300
+```
 
 ## Historial de versiones
 

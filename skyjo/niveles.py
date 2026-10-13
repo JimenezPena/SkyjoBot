@@ -1,20 +1,19 @@
 """Registro de niveles (niveles.json) y carga de agentes por nivel.
 
-  "dqn_4.2":   {"tipo": "dqn", "version": "v4_2", "modelo": "modelos/v4_2.pth", "epsilon": 0.0}
+  "dqn_4.2":    {"tipo": "dqn", "version": "v4_2", "modelo": "modelos/v4_2.pth", "epsilon": 0.0}
   "heuristico": {"tipo": "heuristico"}      # baseline, sin pesos, válido con cualquier nº de jugadores
   "aleatorio":  {"tipo": "aleatorio"}
 
-cargar_nivel(nombre) devuelve un agente f(env, obs, mask) -> acción válido con el entorno de cualquier versión.
+cargar_nivel(nombre) devuelve un agente de vista: agente(vista) -> acción.
 """
 import importlib
 import json
 import os
-import random
 
 import torch
 
-from .arena import AgenteSincronizado
-from .heuristico import agente_aleatorio, agente_heuristico
+from .agentes import ConRuido
+from .heuristico import AgenteAleatorio, AgenteHeuristico
 
 RAIZ = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 RUTA_NIVELES = os.path.join(RAIZ, 'niveles.json')
@@ -32,9 +31,9 @@ def cargar_nivel(nombre, device="cpu", ruta=None):
     cfg = niveles[nombre]
     tipo = cfg['tipo']
     if tipo == 'aleatorio':
-        base = agente_aleatorio
+        base = AgenteAleatorio()
     elif tipo == 'heuristico':
-        base = agente_heuristico
+        base = AgenteHeuristico()
     elif tipo == 'dqn':
         modulo = importlib.import_module(f"skyjo.{cfg['version']}")
         path = cfg['modelo'] if os.path.isabs(cfg['modelo']) else os.path.join(RAIZ, cfg['modelo'])
@@ -44,17 +43,9 @@ def cargar_nivel(nombre, device="cpu", ruta=None):
         except RuntimeError as e:
             raise ValueError(f"El modelo '{path}' no es compatible con la versión "
                              f"'{cfg['version']}' (nivel '{nombre}').") from e
-        model.eval()
-        base = AgenteSincronizado(modulo, modulo.agente_dqn(model, device))
+        base = modulo.AgenteDQN(model.eval(), device)
     else:
         raise ValueError(f"Tipo de nivel desconocido: {tipo}")
-
+    base.nombre = nombre
     eps = float(cfg.get('epsilon', 0.0))
-    if eps <= 0:
-        return base
-
-    def con_ruido(env, obs, mask):
-        if random.random() < eps:
-            return agente_aleatorio(env, obs, mask)
-        return base(env, obs, mask)
-    return con_ruido
+    return ConRuido(base, eps) if eps > 0 else base
