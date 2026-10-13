@@ -21,7 +21,7 @@ device = torch.device("cpu")
 
 # Oponente por defecto (el modelo 4.1 de siempre). Se puede cambiar con la variable de entorno SKYJO_NIVEL
 # o por partida con {"nivel": "..."} en POST /api/reset (opcional: index.html no lo necesita).
-NIVEL_POR_DEFECTO = os.environ.get("SKYJO_NIVEL", "dqn_4.1")
+NIVEL_POR_DEFECTO = os.environ.get("SKYJO_NIVEL", "dqn_4.2")
 
 _agentes = {}
 def get_agente(nivel):

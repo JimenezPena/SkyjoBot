@@ -1,6 +1,6 @@
 """Registro de niveles (niveles.json) y carga de agentes por nivel.
 
-  "dqn_4.1":   {"tipo": "dqn", "version": "v4_2", "modelo": "modelos/v4_1.pth", "epsilon": 0.0}
+  "dqn_4.2":   {"tipo": "dqn", "version": "v4_2", "modelo": "modelos/v4_2.pth", "epsilon": 0.0}
   "heuristico": {"tipo": "heuristico"}      # baseline, sin pesos, válido con cualquier nº de jugadores
   "aleatorio":  {"tipo": "aleatorio"}
 

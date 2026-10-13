@@ -9,7 +9,7 @@ skyjo/
   v5_0/         observación con columnas, dueling enmascarado, n-step, soft update (en desarrollo)
   niveles.py    registro de niveles: cargar_nivel("nombre") -> agente válido con el entorno de cualquier versión
   arena.py      permite enfrentar modelos de versiones distintas
-niveles.json    niveles disponibles (heuristico, dqn_4.1, aleatorio, ...)
+niveles.json    niveles disponibles (heuristico, dqn_4.2, aleatorio, ...)
 modelos/        pesos finales que usan los niveles
 online_app.py + templates/index.html   la web
 train.py / evaluate.py                 entrenamiento y evaluación por línea de comandos
@@ -39,7 +39,7 @@ modelo como nivel: copiar el `.pth` a `modelos/` y añadir una entrada a `nivele
 
 ## Web
 
-El oponente por defecto es `dqn_4.1`; se cambia con la variable de entorno `SKYJO_NIVEL` o por partida con
+El oponente por defecto es `dqn_4.2`; se cambia con la variable de entorno `SKYJO_NIVEL` o por partida con
 `POST /api/reset {"nivel": "heuristico"}` (opcional; `GET /api/niveles` lista los disponibles).
 `python -m pytest -q tests` juega partidas completas por la API con cada nivel y comprueba que `index.html` solo usa
 rutas que existen y que no se filtran cartas ocultas.
@@ -50,9 +50,9 @@ heuristico: bot sencillo (coge el descarte si ahorra >= 3 puntos esperados, colo
 
 skyjo_dqn_model_5.0 (en desarrollo): observación con información explícita de columnas, dueling con ventaja enmascarada, retornos n-step, soft update del target.
 
-skyjo_dqn_model_4.2: mismo modelo que 4.1; añade evaluación contra el heurístico cada 2500 episodios y checkpoints.
+skyjo_dqn_model_4.2 (web, ahora modelos/v4_2.pth): mismo modelo que 4.1; añade evaluación contra el heurístico cada 2500 episodios y checkpoints.
 
-skyjo_dqn_model_4.1.pth (web, ahora modelos/v4_1.pth): Dueling DQN (ramas V(s) y A(s,a)) sobre Double DQN, 26 acciones.
+skyjo_dqn_model_4.1.pth: Dueling DQN (ramas V(s) y A(s,a)) sobre Double DQN, 26 acciones.
 
 skyjo_dqn_model_4.0.pth: Increases the number of actions to 26, such that when the card from the deck is discarded, the dqn (and the human player) can choose which of the unrevealed cards to flip, instead of automatically flipping the first unrevealed card.
 
