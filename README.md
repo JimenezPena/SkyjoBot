@@ -6,7 +6,7 @@ DQN que aprende a jugar a Skyjo™ y servidor web para jugar humano contra IA. P
 skyjo/
   heuristico/   baseline sin pesos (funciona con cualquier nº de jugadores y cualquier versión del entorno)
   v4_2/         Dueling Double DQN, 26 acciones (modelo 4.1 + heurístico y duelos cada 2500 episodios)
-  v5_0/         observación con columnas, dueling enmascarado, n-step, soft update (en desarrollo)
+  v5_0/         observación y red independientes del nº de jugadores (2-8), desde la vista pública (en desarrollo: aún sin entrenador)
   niveles.py    registro de niveles: cargar_nivel("nombre") -> agente válido con el entorno de cualquier versión
   vista.py      vista pública de un asiento (solo información visible) y adaptadores
   agentes.py    interfaz de agente agente(vista)->acción: humano, ruido epsilon
@@ -28,7 +28,7 @@ comparar qué decisiones de diseño y qué información de entrada hacen que una
 
 ```bash
 python train.py --version v4_2 --out-dir /content/drive/MyDrive/skyjo     # checkpoints y modelo en Drive
-python train.py --version v5_0 --set NUM_EPISODIOS=5000 LR=3e-4           # sobrescribe hiperparámetros
+python train.py --version v4_2 --set NUM_EPISODIOS=5000 LR=3e-4           # sobrescribe hiperparámetros
 python evaluate.py torneo --version v4_2 --ckpt-dir <carpeta_checkpoints> # cada checkpoint vs heurístico
 python evaluate.py niveles -n 300                                         # todos los niveles entre sí
 ```
@@ -37,7 +37,7 @@ Cada entrenamiento escribe `<modelo>.meta.json` (versión, commit, CONFIG y resu
 modelo como nivel: copiar el `.pth` a `modelos/` y añadir una entrada a `niveles.json`:
 
 ```json
-"dificil": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_0_best.pth", "epsilon": 0.0}
+"dificil": {"tipo": "dqn", "version": "v4_2", "modelo": "modelos/v4_2_best.pth", "epsilon": 0.0}
 ```
 
 ## Web
@@ -52,7 +52,7 @@ rutas que existen y que no se filtran cartas ocultas.
 Cada agente decide a partir de una `Vista` (`skyjo/vista.py`): sus cartas y las visibles de los demás, con los tableros
 girados al asiento del agente (0 = yo, 1 = izquierda, que recibe mis descartes, n-1 = derecha, de quien viene el
 descarte), historial de descartes, nº de jugadores y cartas ocultas. Nunca contiene cartas ocultas ajenas.
-La observación del modelo 4.2 se construye solo desde la vista (idéntica a la anterior). Los DQN 4.x/5.0 solo juegan con 2
+La observación del modelo 4.2 se construye solo desde la vista (idéntica a la anterior). El DQN 4.2 solo juega con 2
 asientos; el heurístico y el aleatorio, con 2-8.
 
 ```bash
@@ -64,7 +64,7 @@ python evaluate.py partida heuristico dqn_4.2 -n 300
 
 heuristico: bot sencillo (coge el descarte si ahorra >= 3 puntos esperados, coloca donde más gana y, si la carta es del mazo y gana < 2, la descarta y destapa una oculta). Referencia para medir el resto.
 
-skyjo_dqn_model_5.0 (en desarrollo): observación con información explícita de columnas, dueling con ventaja enmascarada, retornos n-step, soft update del target.
+skyjo_dqn_model_5.0 (en desarrollo): observación y red independientes del nº de jugadores, construidas solo desde la vista pública (tablero propio, izquierda y derecha en ranuras dedicadas, resto de rivales resumidos con media y máximo). La 5.0 anterior (columnas explícitas, n-step, soft update) nunca aprendió y se retiró; sigue en la rama/tag de respaldo anterior al cambio.
 
 skyjo_dqn_model_4.2 (web, ahora modelos/v4_2.pth): mismo modelo que 4.1; añade evaluación contra el heurístico cada 2500 episodios y checkpoints.
 

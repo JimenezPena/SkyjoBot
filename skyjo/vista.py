@@ -77,24 +77,6 @@ def construir_vista(env, jugador_id=None):
         turnos_restantes=int(env.turnos_restantes), mask=mask)
 
 
-def entorno_desde_vista(vista, clase_env, destino=None):
-    """Entorno "sombra" con SOLO la información de la vista (cartas ocultas a 0), para los modelos cuya
-    observación aún se calcula desde un entorno (p. ej. v5_0). Los asientos quedan en orden relativo."""
-    e = destino if destino is not None else clase_env(num_jugadores=vista.n)
-    e.num_jugadores = vista.n
-    e.tableros = np.stack([vista.valores, vista.estado], axis=-1).astype(e.tableros.dtype)
-    e.descartes = [int(x) for x in vista.descartes]
-    e.mazo = [0] * vista.n_mazo
-    e.carta_en_mano = vista.mano
-    e.origen_robo = vista.origen
-    e.fase_turno = vista.fase
-    e.turno_actual = 0
-    e.cerrador_id = vista.cerrador
-    e.turnos_restantes = vista.turnos_restantes
-    e.game_over = False
-    return e
-
-
 def agente_env(agente):
     """Adapta un agente de vista a la firma antigua f(env, obs, mask) (la usan los duelos de los trainers)."""
     def f(env, obs, mask):
