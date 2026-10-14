@@ -13,13 +13,14 @@ import numpy as np
 from flask import Flask, render_template, jsonify, request, session
 from skyjo.v4_2 import SkyjoEnv            # motor de juego (las reglas son iguales en todas las versiones)
 from skyjo.niveles import cargar_nivel, listar_niveles
+from skyjo.vista import construir_vista
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "clave-solo-para-local")
 
 device = torch.device("cpu")
 
-# Oponente por defecto (el modelo 4.1 de siempre). Se puede cambiar con la variable de entorno SKYJO_NIVEL
+# Oponente por defecto (el modelo 4.2). Se puede cambiar con la variable de entorno SKYJO_NIVEL
 # o por partida con {"nivel": "..."} en POST /api/reset (opcional: index.html no lo necesita).
 NIVEL_POR_DEFECTO = os.environ.get("SKYJO_NIVEL", "dqn_4.2")
 
@@ -115,9 +116,9 @@ def ia_step():
     if env.turno_actual != 1:
         return jsonify({"error": "No es el turno de la IA"}), 400
 
-    obs = env.obtener_observacion(1)
-    mask = env.get_action_mask(1)
-    accion_ia = get_agente(game["nivel"])(env, obs, mask)
+    vista = construir_vista(env, 1)                  # el agente solo ve la vista pública
+    mask = vista.mask
+    accion_ia = int(get_agente(game["nivel"])(vista))
     if not (0 <= accion_ia < len(mask)) or not mask[accion_ia]:      # red de seguridad: nunca bloquear la partida
         accion_ia = int(np.random.choice(np.flatnonzero(mask)))
     env.step(accion_ia)

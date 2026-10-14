@@ -112,61 +112,10 @@ class SkyjoEnv:
         return -self._puntos_estimados(jugador_id, self._valor_esperado_oculta())
 
     def obtener_observacion(self, jugador_id=None):
-        if jugador_id is None:
-            jugador_id = self.turno_actual
-
-        num_j = self.num_jugadores
-        indices_ordenados = [(jugador_id + i) % num_j for i in range(num_j)]
-        tableros_rotados = self.tableros[indices_ordenados]
-
-        visible_mask = (tableros_rotados[:, :, :, 1] == 1)
-        valores_tableros = np.where(
-            visible_mask, (tableros_rotados[:, :, :, 0] - 5.0) / 7.0, 0.0
-        ).astype(np.float32)
-        visibilidad_tableros = tableros_rotados[:, :, :, 1].astype(np.float32)
-
-        # Escalares básicos
-        c_mano = ((float(self.carta_en_mano) - 5.0) / 7.0) if self.carta_en_mano is not None else 0.0
-        top_descarte = ((float(self.descartes[-1]) - 5.0) / 7.0) if len(self.descartes) > 0 else 0.0
-        fase = float(self.fase_turno) / 2.0
-        origen_flag = 1.0 if self.origen_robo == 'DESCARTE' else 0.0
-        escalares_basicos = np.array([c_mano, top_descarte, fase, origen_flag], dtype=np.float32)
-
-        # Conteo de cartas no vistas
-        conteo = self._conteo_restantes()
-        vector_conteo = conteo / TOTALES_INICIALES
-        e_oculta = self._valor_esperado_oculta(conteo)
-
-        # Features de contexto
-        rivales = [j for j in range(num_j) if j != jugador_id]
-        ocultas = {j: int(np.sum(self.tableros[j, :, :, 1] == 0)) for j in range(num_j)}
-        ocultas_rivales = [ocultas[j] for j in rivales]
-        est_propio = self._puntos_estimados(jugador_id, e_oculta)
-        est_rivales = [self._puntos_estimados(j, e_oculta) for j in rivales]
-
-        alguien_cerro = 1.0 if self.cerrador_id is not None else 0.0
-        turnos_rest = max(self.turnos_restantes, 0) / 3.0
-
-        extra = np.array([
-            alguien_cerro,                                            # 19
-            turnos_rest,                                              # 20
-            ocultas[jugador_id] / 12.0,                               # 21
-            float(np.mean(ocultas_rivales)) / 12.0,                   # 22
-            min(ocultas_rivales) / 12.0,                              # 23
-            self._calcular_puntos_tablero(jugador_id) / 50.0,         # 24
-            est_propio / 50.0,                                        # 25
-            float(np.clip((min(est_rivales) - est_propio) / 30.0, -2.0, 2.0)),  # 26
-            len(self.mazo) / 150.0,                                   # 27
-        ], dtype=np.float32)
-
-        escalares = np.concatenate([escalares_basicos, vector_conteo, extra]).astype(np.float32)
-        assert escalares.shape[0] == N_ESCALARES
-
-        return {
-            'valores_tableros': valores_tableros,
-            'visibilidad_tableros': visibilidad_tableros,
-            'escalares': escalares
-        }
+        """Observación del modelo: se calcula SOLO desde la vista pública (skyjo.vista), igual que al jugar."""
+        from skyjo.vista import construir_vista            # imports locales: evitan el ciclo env <-> observacion
+        from .observacion import observacion_desde_vista
+        return observacion_desde_vista(construir_vista(self, jugador_id))
 
     def _reciclar_descartes_si_es_necesario(self):
         if len(self.mazo) == 0 and len(self.descartes) > 1:
