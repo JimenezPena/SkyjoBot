@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skyjo 4 jugadores</title>
+    <style>
+        :root {
+            --bg-color: #1e272e;
+            --card-neg: #1b365d;   /* -2, -1: Azul Oscuro */
+            --card-zero: #00a3e0;  /* 0: Cyan */
+            --card-low: #2e7d32;   /* 1-4: Verde */
+            --card-mid: #fbc02d;   /* 5-8: Amarillo */
+            --card-high: #c62828;  /* 9-12: Rojo */
+            --card-back: #2c3e50;  /* Carta Oculta */
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 15px;
+        }
+
+        h1 { margin: 5px 0 15px 0; font-size: 1.8rem; }
+
+	.game-container {
+	    display: flex;
+	    flex-direction: column;
+	    align-items: center;
+	    gap: 20px;
+	    width: 100%;
+	    max-width: 760px;
+	}
+
+        /* TABLEROS */
+        .board {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+        }
+        
+	.boards-row {
+	    display: flex;
+	    justify-content: center;
+	    align-items: flex-start;
+	    gap: 20px;
+	    width: 100%;
+	    flex-wrap: wrap;   /* en pantallas estrechas se apilan */
+	}
+
+	.board-wrapper {
+	    display: flex;
+	    flex-direction: column;
+	    align-items: center;
+	}
+	
+        .player-label {
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+        }
+
+        /* CARTAS */
+        .card {
+            width: 65px;
+            height: 95px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.8rem;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            border: 2px solid #ffffff33;
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.1s ease, border-color 0.2s ease;
+        }
+
+        .card:hover { transform: scale(1.05); }
+
+        /* Colores Skyjo */
+        .card-neg { background-color: var(--card-neg); color: #fff; }
+        .card-zero { background-color: var(--card-zero); color: #fff; }
+        .card-low { background-color: var(--card-low); color: #fff; }
+        .card-mid { background-color: var(--card-mid); color: #222; }
+        .card-high { background-color: var(--card-high); color: #fff; }
+        .card-hidden { 
+            background-color: var(--card-back); 
+            color: #7f8c8d;
+            border: 2px dashed #ffffff55;
+        }
+        .card-removed { visibility: hidden; }
+        
+        /* Transición suave para el cambio de turno */
+	.board-wrapper {
+	    padding: 8px;
+	    border-radius: 12px;
+	    transition: all 0.3s ease;
+	    border: 2px solid transparent;
+	}
+
+	/* Estilo para el jugador en turno */
+	.board-wrapper.active-turn {
+	    background-color: rgba(39, 174, 96, 0.15); /* Fondo verde tenue */
+	    border-color: #27ae60;                      /* Borde verde brillante */
+	    box-shadow: 0 0 12px rgba(39, 174, 96, 0.4);
+	}
+
+	.board-wrapper.active-turn .player-label {
+	    color: #2ec771;
+	    font-weight: bold;
+	}
+
+        /* ZONA CENTRAL (MAZOS Y ACCIONES) */
+        .middle-zone {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.08);
+            padding: 15px;
+            border-radius: 12px;
+        }
+
+	.hand-wrapper {
+	    display: flex;
+	    align-items: flex-end;
+	    gap: 8px;
+	}
+	
+	.btn-discard-slot {
+	    width: 80px;
+	    height: 100px;
+	    background-color: #c62828;
+	    color: white;
+	    border: 2px solid #ffffff99;
+	    border-radius: 8px;
+	    cursor: pointer;
+	    display: flex;
+	    flex-direction: column;
+	    align-items: center;
+	    justify-content: center;
+	    font-size: 1.8rem;
+	    padding: 0;
+	    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3); 
+	    transition: transform 0.1s ease, background-color 0.2s ease;
+	}
+
+	.btn-discard-slot span {
+	    font-size: 0.65rem;
+	    font-weight: bold;
+	    text-transform: uppercase;
+	    margin-top: 2px;
+	}
+
+	.btn-discard-slot:hover {
+	    background-color: #e53935;
+	    transform: scale(1.05);
+	}
+
+	@keyframes shake {
+	    0%, 100% { transform: translateX(0); }
+	    20%, 60% { transform: translateX(-10px); }
+	    40%, 80% { transform: translateX(10px); }
+	}
+
+	.defeat-effect {
+	    animation: shake 0.5s ease-in-out;
+	}
+	
+	/* Ajuste específico para móviles dentro de tu media query @media (max-width: 600px) */
+	@media (max-width: 600px) {
+	    .btn-discard-slot {
+		width: 44px;
+		height: 66px;
+		font-size: 1.1rem;
+		border-radius: 5px;
+	    }
+	    
+	    .btn-discard-slot span {
+		font-size: 0.5rem;
+	    }
+	}
+
+        .deck-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .deck-title { font-size: 0.85rem; color: #aaa; text-transform: uppercase; }
+
+        /* PANEL DE ACCIONES / MENSAJES */
+        .status-panel {
+            text-align: center;
+            font-size: 1.1rem;
+            min-height: 40px;
+        }
+
+        .btn-action {
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .btn-action:hover { background-color: #2ec771; }
+        .btn-action:disabled { background-color: #7f8c8d; cursor: not-allowed; }
+
+        /* Adaptación para pantallas pequeñas / móviles verticales */
+	@media (max-width: 600px) {
+	    html, body {
+		/* Permite scroll vertical únicamente si la pantalla es excesivamente corta */
+		overflow-y: auto;
+		height: auto;
+	    }
+	    
+	    body {
+		padding: 5px;
+	    }
+
+	    h1 {
+		font-size: 1.2rem;
+		margin: 2px 0 6px 0;
+	    }
+
+	    .game-container {
+		gap: 8px;
+	    }
+
+	    .boards-row {
+		gap: 8px;
+	    }
+
+	    /* Reducimos el padding y el espacio entre cartas del tablero */
+	    .board {
+		gap: 5px;
+		padding: 6px;
+	    }
+
+	    /* Reducimos el tamaño de las cartas */
+	    .card {
+		width: 44px;
+		height: 66px;
+		font-size: 1.2rem;
+		border-radius: 6px;
+	    }
+
+	    /* Ajustes para los botones de acción */
+	    .btn-action {
+		padding: 8px 14px;
+		font-size: 0.85rem;
+		margin-top: 5px;
+		width: 90%; /* Para asegurarse de que no sobresalga horizontalmente */
+		max-width: 300px;
+	    }
+
+	    /* Reducimos el padding de la zona central */
+	    .middle-zone {
+		padding: 6px;
+	    }
+
+	    .status-panel {
+		font-size: 0.90rem;
+		min-height: 30px;
+	    }
+	}
+	
+
+        .opponents { display: flex; justify-content: center; gap: 10px; width: 100%; flex-wrap: wrap; }
+        .opponents .card { width: 44px; height: 64px; font-size: 1.2rem; border-radius: 6px; cursor: default; }
+        .opponents .card:hover { transform: none; }
+        .opponents .board { gap: 5px; padding: 6px; }
+        .opponents .board-wrapper { padding: 4px; }
+        .opponents .player-label { font-size: 0.9rem; }
+        .vis-pts { font-size: 0.75rem; color: #aaa; font-weight: normal; }
+        .link-vuelta { color: #aaa; font-size: 0.85rem; }
+        @media (max-width: 600px) { .opponents .card { width: 30px; height: 44px; font-size: 0.85rem; } }
+        /* Mesa 2x2 en sentido horario: tú abajo a la derecha; tras de ti juega el de abajo a la izquierda, luego arriba a la izquierda y arriba a la derecha */
+        .mesa { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; justify-items: center; }
+        .mesa .opponents { display: contents; }
+        .mesa #wrapper-2 { grid-area: 1 / 1; }
+        .mesa #wrapper-3 { grid-area: 1 / 2; }
+        .mesa #wrapper-1 { grid-area: 3 / 1; }
+        .mesa #wrapper-0 { grid-area: 3 / 2; }
+        .mesa .middle-zone { grid-area: 2 / 1 / 3 / 3; box-sizing: border-box; }
+        .mesa .card { width: 54px; height: 78px; font-size: 1.4rem; }
+        .mesa #board-0 .card { cursor: pointer; }
+        @media (max-width: 600px) { .mesa { gap: 4px; } .mesa .card { width: 34px; height: 50px; font-size: 1rem; } .mesa .board { gap: 3px; padding: 4px; } }
+    </style>
+</head>
+<!-- Librería para el efecto de confeti -->
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+<!-- Librería para el efecto de confeti -->
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+<body>
+    <h1>Skyjo: tú contra 3 bots</h1>
+    <div class="game-container">
+        <div class="mesa">
+        <div class="opponents" id="opponents"></div>
+        <div id="wrapper-0" class="board-wrapper">
+            <div class="player-label" id="label-0">👤 Tú</div>
+            <div id="board-0" class="board"></div>
+        </div>
+        <div class="middle-zone">
+            <div class="deck-container">
+                <span class="deck-title">Mazo</span>
+                <div id="deck-draw" class="card card-hidden" onclick="robarMazo()">🂠</div>
+            </div>
+            <div class="hand-wrapper">
+                <div class="deck-container">
+                    <span class="deck-title">En Mano</span>
+                    <div id="card-hand" class="card card-hidden">-</div>
+                </div>
+                <button id="btn-descartar" class="btn-discard-slot" style="display:none" onclick="iniciarDescarte()" title="Descartar y voltear">
+                    🗑️<br><span>Descartar</span>
+                </button>
+            </div>
+            <div class="deck-container">
+                <span class="deck-title">Descarte</span>
+                <div id="deck-discard" class="card card-hidden" onclick="tomarDescarte()">-</div>
+            </div>
+        </div>
+        </div>
+
+        <div class="status-panel" id="status-msg">Cargando partida...</div>
+        <button class="btn-action" onclick="nuevaPartida()">Reiniciar Partida</button>
+        <a class="link-vuelta" href="/">Volver al modo 1 contra 1</a>
+    </div>
+
+    <script>
+        const API = '/api/4';
+        const BOT_DELAY_MS = 1500;
+        const NOMBRES = ['Tú', 'Bot 1', 'Bot 2', 'Bot 3'];
+        let gameState = null, partidaId = 0, modoDescarte = false, bucleActivo = false;
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+        function getCardColorClass(val, vis) {
+            if (vis === -1) return 'card-removed';
+            if (vis === 0) return 'card-hidden';
+            if (val < 0) return 'card-neg';
+            if (val === 0) return 'card-zero';
+            if (val <= 4) return 'card-low';
+            if (val <= 8) return 'card-mid';
+            return 'card-high';
+        }
+
+        function ptsVisibles(tab) {
+            let s = 0;
+            for (const fila of tab) for (const [v, vis] of fila) if (vis === 1) s += v;
+            return s;
+        }
+
+        function pintarTablero(cont, tab, clicable) {
+            cont.innerHTML = '';
+            for (let f = 0; f < 3; f++) for (let c = 0; c < 4; c++) {
+                const [val, vis] = tab[f][c];
+                const d = document.createElement('div');
+                d.className = `card ${getCardColorClass(val, vis)}`;
+                d.innerText = vis === 1 ? val : (vis === 0 ? '?' : '');
+                if (clicable) { const idx = f * 4 + c; d.onclick = () => hacerAccionCasilla(idx); }
+                cont.appendChild(d);
+            }
+        }
+
+        function asegurarOponentes(n) {
+            const cont = document.getElementById('opponents');
+            if (cont.children.length === n - 1) return;
+            cont.innerHTML = '';
+            for (let j = 1; j < n; j++) {
+                cont.insertAdjacentHTML('beforeend',
+                    `<div id="wrapper-${j}" class="board-wrapper"><div class="player-label" id="label-${j}"></div><div id="board-${j}" class="board"></div></div>`);
+            }
+        }
+
+        function renderGame(state) {
+            gameState = state;
+            modoDescarte = false;
+            const n = state.tableros.length;
+            asegurarOponentes(n);
+
+            for (let j = 0; j < n; j++) {
+                pintarTablero(document.getElementById('board-' + j), state.tableros[j], j === 0);
+                document.getElementById('wrapper-' + j).classList.toggle('active-turn', !state.game_over && state.turno_actual === j);
+                const icono = j === 0 ? '👤' : '🤖';
+                let txt = `${icono} ${NOMBRES[j]} <span class="vis-pts">(${ptsVisibles(state.tableros[j])} visibles`;
+                if (state.game_over) txt += ` · ${state.puntos[j]} pts`;
+                document.getElementById('label-' + j).innerHTML = txt + ')</span>';
+            }
+
+            const puedeDescartar = state.turno_actual === 0 && state.fase_turno === 2 && state.action_mask.slice(14, 26).some(m => m);
+            document.getElementById('btn-descartar').style.display = puedeDescartar ? 'inline-block' : 'none';
+
+            const cd = document.getElementById('deck-discard');
+            if (state.top_descarte !== null) {
+                cd.className = `card ${getCardColorClass(state.top_descarte, 1)}`;
+                cd.innerText = state.top_descarte;
+            }
+            const ch = document.getElementById('card-hand');
+            if (state.carta_en_mano !== null) {
+                ch.className = `card ${getCardColorClass(state.carta_en_mano, 1)}`;
+                ch.innerText = state.carta_en_mano;
+            } else { ch.className = 'card card-hidden'; ch.innerText = '-'; }
+
+            const msg = document.getElementById('status-msg');
+            if (state.game_over) {
+                const p = state.puntos, mejor = Math.min(...p);
+                const ganadores = p.map((x, i) => x === mejor ? i : -1).filter(i => i >= 0);
+                const tabla = p.map((x, i) => `${NOMBRES[i]}: ${x}`).join(' | ');
+                if (ganadores.includes(0)) {
+                    msg.innerHTML = `🎉 <b>${ganadores.length > 1 ? '¡EMPATE EN CABEZA!' : '¡VICTORIA!'}</b> 🎉<br>${tabla}`;
+                    confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+                } else {
+                    const pos = p.filter(x => x < p[0]).length + 1;
+                    msg.innerHTML = `💀 <b>Quedas ${pos}º</b> — gana ${NOMBRES[ganadores[0]]}<br>${tabla}`;
+                }
+            } else if (state.turno_actual === 0) {
+                msg.innerHTML = state.fase_turno === 1 ? 'Tu turno: roba del mazo o toma el descarte' : 'Tu turno: coloca la carta en tu tablero o descártala';
+            } else {
+                msg.innerHTML = `Turno de ${NOMBRES[state.turno_actual]}...`;
+            }
+        }
+
+        async function turnoBots(id) {
+            if (bucleActivo) return;
+            bucleActivo = true;
+            try {
+                while (gameState && !gameState.game_over && gameState.turno_actual !== 0) {
+                    await sleep(BOT_DELAY_MS);
+                    if (id !== partidaId) return;
+                    const res = await fetch(API + '/bot_step', { method: 'POST' });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    if (id !== partidaId) return;
+                    renderGame(data);
+                }
+            } finally { bucleActivo = false; }
+        }
+
+        async function nuevaPartida() {
+            partidaId++;
+            const res = await fetch(API + '/reset', { method: 'POST' });
+            renderGame(await res.json());
+            turnoBots(partidaId);      // por si el asiento inicial no fuera el tuyo
+        }
+
+        async function enviarAccion(accion) {
+            const res = await fetch(API + '/step', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: accion })
+            });
+            if (!res.ok) return;
+            renderGame(await res.json());
+            await turnoBots(partidaId);
+        }
+
+        function iniciarDescarte() {
+            modoDescarte = true;
+            const ch = document.getElementById('card-hand'), cd = document.getElementById('deck-discard');
+            cd.className = ch.className; cd.innerText = ch.innerText;
+            ch.className = 'card card-hidden'; ch.innerText = '-';
+            document.getElementById('btn-descartar').style.display = 'none';
+            document.getElementById('status-msg').innerHTML = '<b>👇 Haz clic en una de tus cartas ocultas para voltearla</b>';
+        }
+
+        function tomarDescarte() { if (gameState && gameState.turno_actual === 0 && gameState.fase_turno === 1) enviarAccion(0); }
+        function robarMazo() { if (gameState && gameState.turno_actual === 0 && gameState.fase_turno === 1) enviarAccion(1); }
+
+        function hacerAccionCasilla(idx) {
+            if (!gameState || gameState.turno_actual !== 0 || gameState.fase_turno !== 2) return;
+            const accion = idx + (modoDescarte ? 14 : 2);
+            if (gameState.action_mask[accion]) enviarAccion(accion);
+        }
+
+        nuevaPartida();
+    </script>
+</body>
+</html>
