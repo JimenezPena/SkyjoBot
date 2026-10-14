@@ -77,6 +77,52 @@ def test_partida_4_jugadores_humano_contra_3_bots():
     assert len(s["puntos"]) == 4
 
 
+def _partida_4(c, rng, estado):
+    pasos = 0
+    while not estado["game_over"]:
+        pasos += 1
+        assert pasos < 6000
+        if estado["turno_actual"] == 0:
+            r = c.post('/api/4/step', json={"action": rng.choice([i for i, ok in enumerate(estado["action_mask"]) if ok])})
+        else:
+            r = c.post('/api/4/bot_step')
+        assert r.status_code == 200, r.data
+        estado = r.get_json(); _comprobar(estado)
+    return estado
+
+
+def test_niveles_de_4_jugadores_solo_los_validos_y_mezcla_de_bots():
+    c = online_app.app.test_client()
+    d = c.get('/api/4/niveles').get_json()
+    assert {"heuristico", "aleatorio"} <= set(d["niveles"]) and "dqn_4.2" not in d["niveles"]
+    assert d["por_defecto"] in d["niveles"]
+    assert c.post('/api/4/reset', json={"niveles": ["dqn_4.2", "heuristico", "heuristico"]}).status_code == 400
+    assert c.post('/api/4/reset', json={"niveles": ["heuristico"]}).status_code == 400
+    r = c.post('/api/4/reset', json={"niveles": ["heuristico", "aleatorio", "heuristico"]})
+    assert r.status_code == 200 and r.get_json()["niveles"] == ["heuristico", "aleatorio", "heuristico"]
+    assert len(_partida_4(c, random.Random(5), r.get_json())["puntos"]) == 4
+
+
+def test_un_modelo_v5_0_registrado_como_nivel_juega_en_la_web_de_4(tmp_path, monkeypatch):
+    import json
+    import torch
+    import skyjo.niveles as niveles
+    from skyjo.v5_0 import SkyjoDQN
+    torch.manual_seed(0)
+    torch.save(SkyjoDQN().state_dict(), tmp_path / "m.pth")
+    ruta = tmp_path / "niveles.json"
+    ruta.write_text(json.dumps({"heuristico": {"tipo": "heuristico"},
+                                "dqn_5.0": {"tipo": "dqn", "version": "v5_0", "modelo": str(tmp_path / "m.pth")},
+                                "dqn_4.2": {"tipo": "dqn", "version": "v4_2", "modelo": "modelos/v4_2.pth"}}))
+    monkeypatch.setattr(niveles, "RUTA_NIVELES", str(ruta))
+    monkeypatch.setattr(online_app, "_agentes", {})
+    c = online_app.app.test_client()
+    assert set(c.get('/api/4/niveles').get_json()["niveles"]) == {"heuristico", "dqn_5.0"}
+    r = c.post('/api/4/reset', json={"niveles": ["dqn_5.0", "heuristico", "dqn_5.0"]})
+    assert r.status_code == 200
+    assert len(_partida_4(c, random.Random(6), r.get_json())["puntos"]) == 4
+
+
 def test_index_solo_usa_rutas_que_existen():
     c = online_app.app.test_client()
     r = c.get('/'); assert r.status_code == 200

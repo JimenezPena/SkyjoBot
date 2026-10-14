@@ -45,6 +45,12 @@ modelo como nivel: copiar el `.pth` a `modelos/` y añadir una entrada a `nivele
 
 El oponente por defecto es `dqn_4.2`; se cambia con la variable de entorno `SKYJO_NIVEL` o por partida con
 `POST /api/reset {"nivel": "heuristico"}` (opcional; `GET /api/niveles` lista los disponibles).
+**Modo 4 jugadores** (`/cuatro`): tú contra tres bots; cada bot se elige en un desplegable (`GET /api/4/niveles` lista solo los
+niveles que admiten 4 asientos: el heurístico, el aleatorio y los modelos de `v5_0`; un DQN 4.2 no aparece porque solo juega
+con 2). Para publicar un modelo entrenado a 4 jugadores: copiar el `.pth` a `modelos/` y añadir a `niveles.json`
+`"dqn_5.0": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_0.pth"}`; ya aparece en los desplegables.
+Por defecto todos los bots son heurísticos (`SKYJO_NIVEL_4` lo cambia).
+
 `python -m pytest -q tests` juega partidas completas por la API con cada nivel y comprueba que `index.html` solo usa
 rutas que existen y que no se filtran cartas ocultas.
 

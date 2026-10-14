@@ -1,6 +1,7 @@
 """Versión 4.2: Dueling Double DQN (modelo idéntico a 4.1) + bot heurístico y duelos.
 Los pesos de 4.1 (skyjo_dqn_model_4.1.pth) se cargan con esta misma red."""
 VERSION = "v4_2"
+JUGADORES = (2, 2)        # asientos que admite el modelo
 from .env import SkyjoEnv, N_ACCIONES, N_ESCALARES
 from .model import SkyjoDQN
 from .observacion import observacion_desde_vista
