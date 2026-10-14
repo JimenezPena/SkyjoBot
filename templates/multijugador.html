@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skyjo Multijugador Móvil</title>
+    <!-- Socket.IO cliente -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #1e272e;
+            --card-neg: #1b365d;
+            --card-zero: #00a3e0;
+            --card-low: #2e7d32;
+            --card-mid: #fbc02d;
+            --card-high: #c62828;
+            --card-back: #2c3e50;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 15px;
+        }
+        h1 { margin: 5px 0 15px 0; font-size: 1.8rem; text-align: center; }
+        
+        /* PANTALLA DE LOBBY */
+        #lobby-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            margin-top: 50px;
+            background: rgba(255,255,255,0.05);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+            width: 90%;
+            max-width: 350px;
+            text-align: center;
+        }
+        .lobby-input {
+            padding: 10px;
+            font-size: 1.1rem;
+            border-radius: 6px;
+            border: 1px solid #555;
+            background: #111;
+            color: white;
+            text-align: center;
+            width: 80%;
+            text-transform: uppercase;
+        }
+
+        /* CONTENEDOR DE JUEGO */
+        .game-container {
+            display: none; /* Oculto hasta que comience */
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            width: 100%;
+            max-width: 760px;
+        }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+        }
+        .boards-row {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+            align-items: center;
+        }
+        .board-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            width: 100%;
+            max-width: 340px;
+        }
+        .board-wrapper.active-turn {
+            background-color: rgba(39, 174, 96, 0.15);
+            border-color: #27ae60;
+            box-shadow: 0 0 12px rgba(39, 174, 96, 0.4);
+        }
+        .board-wrapper.active-turn .player-label { color: #2ec771; }
+        .player-label { font-weight: bold; font-size: 1rem; margin-bottom: 4px; }
+
+        /* CARTAS */
+        .card {
+            width: 58px;
+            height: 85px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            border: 2px solid #ffffff33;
+            cursor: pointer;
+            user-select: none;
+        }
+        .card-neg { background-color: var(--card-neg); color: #fff; }
+        .card-zero { background-color: var(--card-zero); color: #fff; }
+        .card-low { background-color: var(--card-low); color: #fff; }
+        .card-mid { background-color: var(--card-mid); color: #222; }
+        .card-high { background-color: var(--card-high); color: #fff; }
+        .card-hidden { background-color: var(--card-back); color: #7f8c8d; border: 2px dashed #ffffff55; }
+        .card-removed { visibility: hidden; }
+
+        /* ZONA CENTRAL */
+        .middle-zone {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            width: 100%;
+            max-width: 340px;
+            background: rgba(255, 255, 255, 0.08);
+            padding: 10px;
+            border-radius: 12px;
+        }
+        .hand-wrapper { display: flex; align-items: flex-end; gap: 8px; }
+        .btn-discard-slot {
+            width: 65px; height: 85px; background-color: #c62828; color: white;
+            border: 2px solid #ffffff99; border-radius: 6px; cursor: pointer;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-size: 1.2rem; font-weight: bold;
+        }
+        .btn-discard-slot span { font-size: 0.55rem; text-transform: uppercase; margin-top: 2px; }
+        .deck-container { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .deck-title { font-size: 0.75rem; color: #aaa; text-transform: uppercase; }
+
+        .status-panel { text-align: center; font-size: 1rem; min-height: 35px; padding: 0 10px; }
+        .btn-action {
+            background-color: #27ae60; color: white; border: none;
+            padding: 10px 20px; font-size: 1rem; border-radius: 6px;
+            cursor: pointer; font-weight: bold; width: 100%; max-width: 300px;
+        }
+        .btn-action:hover { background-color: #2ec771; }
+        .error-txt { color: #e74c3c; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+    <h1>Skyjo Multijugador</h1>
+
+    <!-- PANTALLA DE LOBBY -->
+    <div id="lobby-screen">
+        <h3>Modo 2 Jugadores</h3>
+        <button class="btn-action" onclick="crearPartida()">Crear Nueva Partida</button>
+        <p style="margin: 5px 0; color: #aaa;">O</p>
+        <input type="text" id="room-input" class="lobby-input" placeholder="CÓDIGO SALA" maxlength="4">
+        <button class="btn-action" style="background-color: #2980b9;" onclick="unirsePartida()">Unirse a Partida</button>
+        <div id="lobby-error" class="error-txt"></div>
+    </div>
+
+    <!-- PANTALLA DE JUEGO -->
+    <div class="game-container" id="game-screen">
+        <!-- Banner fijo para ver el código de sala en todo momento -->
+        <div id="room-banner" style="background: rgba(255, 255, 255, 0.08); padding: 8px 15px; border-radius: 8px; font-size: 0.95rem; text-align: center; width: 100%; max-width: 340px; box-sizing: border-box;">
+            Sala: <b id="display-room-code" style="color: #2ec771; letter-spacing: 2px; font-size: 1.1rem;">----</b>
+        </div>
+        
+        <div class="boards-row">
+            <!-- Tablero del Rival (Arriba) -->
+            <div id="wrapper-rival" class="board-wrapper">
+                <div class="player-label" id="label-rival">🔴 Rival</div>
+                <div id="board-rival" class="board"></div>
+            </div>
+
+            <!-- Tu Tablero (Abajo) -->
+            <div id="wrapper-human" class="board-wrapper">
+                <div class="player-label" id="label-human">🟢 Tú</div>
+                <div id="board-human" class="board"></div>
+            </div>
+        </div>
+
+        <!-- ZONA CENTRAL -->
+        <div class="middle-zone">
+            <div class="deck-container">
+                <span class="deck-title">Mazo</span>
+                <div id="deck-draw" class="card card-hidden" onclick="robarMazo()">🂠</div>
+            </div>
+
+            <div class="hand-wrapper">
+                <div class="deck-container">
+                    <span class="deck-title">En Mano</span>
+                    <div id="card-hand" class="card card-hidden">-</div>
+                </div>
+                <button id="btn-descartar" class="btn-discard-slot" style="display:none" onclick="iniciarDescarte()">
+                    🗑️<br><span>Descartar</span>
+                </button>
+            </div>
+
+            <div class="deck-container">
+                <span class="deck-title">Descarte</span>
+                <div id="deck-discard" class="card card-hidden" onclick="tomarDescarte()">-</div>
+            </div>
+        </div>
+
+        <div class="status-panel" id="status-msg">Esperando oponente...</div>
+        <a href="/" style="color:#aaa; font-size:0.85rem; margin-top: 10px;">Volver al modo individual vs IA</a>
+    </div>
+
+    <script>
+        const socket = io();
+        let miAsiento = null;
+        let codigoSala = null;
+        let gameState = null;
+        let modoDescarte = false;
+
+        function crearPartida() {
+            socket.emit('crear_partida');
+        }
+
+        function unirsePartida() {
+            const codigo = document.getElementById('room-input').value.trim().toUpperCase();
+            if (codigo.length !== 4) {
+                document.getElementById('lobby-error').innerText = "Introduce un código válido de 4 letras.";
+                return;
+            }
+            socket.emit('unirse_partida', { room: codigo });
+        }
+
+        socket.on('partida_creada', (data) => {
+            codigoSala = data.room;
+            miAsiento = data.asiento;
+            document.getElementById('lobby-screen').style.display = 'none';
+            document.getElementById('game-screen').style.display = 'flex';
+            // Mostrar el código en el banner fijo
+            document.getElementById('display-room-code').innerText = codigoSala;
+        });
+
+        socket.on('unido_exito', (data) => {
+            codigoSala = data.room;
+            miAsiento = data.asiento;
+            document.getElementById('lobby-screen').style.display = 'none';
+            document.getElementById('game-screen').style.display = 'flex';
+            
+            // Mostrar el código en el banner fijo también para el segundo jugador
+            document.getElementById('display-room-code').innerText = codigoSala;
+        });
+
+        socket.on('error_multijugador', (data) => {
+            document.getElementById('lobby-error').innerText = data.mensaje;
+        });
+
+        socket.on('actualizar_estado', (state) => {
+            gameState = state;
+            renderGame(state);
+        });
+
+        function renderGame(state) {
+            const rivalAsiento = 1 - miAsiento;
+
+            // 1. Resaltar turnos
+            const wrapperHuman = document.getElementById('wrapper-human');
+            const wrapperRival = document.getElementById('wrapper-rival');
+
+            if (state.turno_actual === miAsiento) {
+                wrapperHuman.classList.add('active-turn');
+                wrapperRival.classList.remove('active-turn');
+            } else {
+                wrapperRival.classList.add('active-turn');
+                wrapperHuman.classList.remove('active-turn');
+            }
+
+            modoDescarte = false;
+            const puedeDescartar = state.turno_actual === miAsiento && state.fase_turno === 2 && state.action_mask.slice(14, 26).some(m => m);
+            document.getElementById('btn-descartar').style.display = puedeDescartar ? 'inline-block' : 'none';
+
+            // 2. Render Tablero Rival (Arriba)
+            const boardRival = document.getElementById('board-rival');
+            boardRival.innerHTML = '';
+            for (let f = 0; f < 3; f++) {
+                for (let c = 0; c < 4; c++) {
+                    const val = state.tableros[rivalAsiento][f][c][0];
+                    const vis = state.tableros[rivalAsiento][f][c][1];
+                    const cardDiv = document.createElement('div');
+                    cardDiv.className = `card ${getCardColorClass(val, vis)}`;
+                    cardDiv.innerText = vis === 1 ? val : (vis === 0 ? '?' : '');
+                    boardRival.appendChild(cardDiv);
+                }
+            }
+
+            // 3. Render Tu Tablero (Abajo)
+            const boardHuman = document.getElementById('board-human');
+            boardHuman.innerHTML = '';
+            for (let f = 0; f < 3; f++) {
+                for (let c = 0; c < 4; c++) {
+                    const idx = f * 4 + c;
+                    const val = state.tableros[miAsiento][f][c][0];
+                    const vis = state.tableros[miAsiento][f][c][1];
+                    const cardDiv = document.createElement('div');
+                    cardDiv.className = `card ${getCardColorClass(val, vis)}`;
+                    cardDiv.innerText = vis === 1 ? val : (vis === 0 ? '?' : '');
+                    cardDiv.onclick = () => hacerAccionCasilla(idx);
+                    boardHuman.appendChild(cardDiv);
+                }
+            }
+
+            // 4. Descarte y Mano
+            const cardDiscard = document.getElementById('deck-discard');
+            if (state.top_descarte !== null) {
+                cardDiscard.className = `card ${getCardColorClass(state.top_descarte, 1)}`;
+                cardDiscard.innerText = state.top_descarte;
+            }
+
+            const cardHand = document.getElementById('card-hand');
+            if (state.carta_en_mano !== null) {
+                cardHand.className = `card ${getCardColorClass(state.carta_en_mano, 1)}`;
+                cardHand.innerText = state.carta_en_mano;
+            } else {
+                cardHand.className = 'card card-hidden';
+                cardHand.innerText = '-';
+            }
+
+            // 5. Mensajes de Estado
+            const msg = document.getElementById('status-msg');
+            if (state.game_over) {
+                const ganoYo = state.puntos[miAsiento] < state.puntos[rivalAsiento];
+                const empate = state.puntos[miAsiento] === state.puntos[rivalAsiento];
+                if (ganoYo) {
+                    msg.innerHTML = `🎉 <b>¡VICTORIA!</b> 🎉<br>Tus puntos: ${state.puntos[miAsiento]} | Rival: ${state.puntos[rivalAsiento]}`;
+                    confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+                } else if (empate) {
+                    msg.innerHTML = `🤝 <b>¡EMPATE!</b><br>Puntos: ${state.puntos[miAsiento]}`;
+                } else {
+                    msg.innerHTML = `💀 <b>HAS PERDIDO</b><br>Tus puntos: ${state.puntos[miAsiento]} | Rival: ${state.puntos[rivalAsiento]}`;
+                }
+            } else {
+                if (state.turno_actual === miAsiento) {
+                    msg.innerHTML = state.fase_turno === 1 ? "<b>Tu turno:</b> Roba del mazo o del descarte" : "<b>Tu turno:</b> Coloca la carta en tu tablero";
+                } else {
+                    msg.innerHTML = "Esperando movimiento del rival...";
+                }
+            }
+        }
+
+        function getCardColorClass(val, vis) {
+            if (vis === -1) return 'card-removed';
+            if (vis === 0) return 'card-hidden';
+            if (val < 0) return 'card-neg';
+            if (val === 0) return 'card-zero';
+            if (val <= 4) return 'card-low';
+            if (val <= 8) return 'card-mid';
+            return 'card-high';
+        }
+
+        function enviarAccion(accion) {
+            socket.emit('accion_jugador', { room: codigoSala, asiento: miAsiento, action: accion });
+        }
+
+        function iniciarDescarte() {
+            modoDescarte = true;
+            document.getElementById('btn-descartar').style.display = 'none';
+            document.getElementById('status-msg').innerHTML = "<b>👇 Haz clic en una de tus cartas ocultas para voltearla</b>";
+        }
+
+        function tomarDescarte() {
+            if (gameState && gameState.turno_actual === miAsiento && gameState.fase_turno === 1) {
+                enviarAccion(0);
+            }
+        }
+
+        function robarMazo() {
+            if (gameState && gameState.turno_actual === miAsiento && gameState.fase_turno === 1) {
+                enviarAccion(1);
+            }
+        }
+
+        function hacerAccionCasilla(idxCasilla) {
+            if (!gameState || gameState.turno_actual !== miAsiento || gameState.fase_turno !== 2) return;
+            if (modoDescarte) {
+                const accion = idxCasilla + 14;
+                if (gameState.action_mask[accion]) enviarAccion(accion);
+            } else {
+                const accion = idxCasilla + 2;
+                if (gameState.action_mask[accion]) enviarAccion(accion);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -10,6 +10,10 @@ torch.set_num_threads(1)
 
 import numpy as np
 
+from flask_socketio import SocketIO, join_room, emit
+import string
+import random
+
 from flask import Flask, render_template, jsonify, request, session
 from skyjo.v4_2 import SkyjoEnv            # motor de juego (las reglas son iguales en todas las versiones)
 from skyjo.niveles import cargar_nivel, listar_niveles, niveles_para
@@ -196,5 +200,103 @@ def bot_step4():
     env.step(accion)
     return jsonify(respuesta4(game))
 
+# ---- Modo 2 jugadores humanos: tú (asiento 0) y rival (asiento 1)
+
+# Inicializar SocketIO integrado con tu app de Flask
+socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Almacén para las partidas multijugador entre humanos (Salas de 2 jugadores)
+# Estructura: { "ABCD": { "env": SkyjoEnv(2), "jugadores": {0: sid_p1, 1: sid_p2} } }
+multi_rooms = {}
+
+def generar_codigo_sala():
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+
+@app.route('/multijugador')
+def pagina_multijugador():
+    return render_template('multijugador.html')
+
+@socketio.on('crear_partida')
+def handle_crear_partida(data=None):
+    room = generar_codigo_sala()
+    while room in multi_rooms:
+        room = generar_codigo_sala()
+    
+    env = SkyjoEnv(num_jugadores=2)
+    env.reset()
+    
+    multi_rooms[room] = {
+        "env": env,
+        "jugadores": {0: request.sid, 1: None}
+    }
+    join_room(room)
+    emit('partida_creada', {"room": room, "asiento": 0})
+    emit_estado_multijugador(room)
+
+@socketio.on('unirse_partida')
+def handle_unirse_partida(data=None):
+    if not data:
+        emit('error_multijugador', {"mensaje": "Datos de sala no recibidos"})
+        return
+        
+    room = data.get('room', '').upper()
+    if room in multi_rooms and multi_rooms[room]["jugadores"][1] is None:
+        multi_rooms[room]["jugadores"][1] = request.sid
+        join_room(room)
+        emit('unido_exito', {"room": room, "asiento": 1})
+        emit_estado_multijugador(room)
+    else:
+        emit('error_multijugador', {"mensaje": "Sala no encontrada o ya está llena"})
+
+@socketio.on('accion_jugador')
+def handle_accion_jugador(data=None):
+    if not data:
+        return
+        
+    room = data.get('room')
+    asiento = data.get('asiento')
+    accion = data.get('action')
+
+    if room not in multi_rooms:
+        return
+    
+    game = multi_rooms[room]
+    env = game["env"]
+
+    if env.game_over or env.turno_actual != asiento:
+        return
+
+    mask = env.get_action_mask(asiento)
+    if not isinstance(accion, int) or not (0 <= accion < len(mask)) or not mask[accion]:
+        return
+
+    env.step(accion)
+    emit_estado_multijugador(room)
+
+def emit_estado_multijugador(room):
+    game = multi_rooms[room]
+    env = game["env"]
+    puntos = env.calcular_puntuaciones_finales() if env.game_over else None
+    
+    estado_base = {
+        "tableros": tableros_publicos(env),
+        "turno_actual": int(env.turno_actual),
+        "fase_turno": int(env.fase_turno),
+        "origen_robo": env.origen_robo,
+        "carta_en_mano": int(env.carta_en_mano) if env.carta_en_mano is not None else None,
+        "top_descarte": int(env.descartes[-1]) if len(env.descartes) > 0 else None,
+        "game_over": env.game_over,
+        "puntos": puntos
+    }
+
+    # Enviar a cada jugador su tablero y máscara específica de forma privada
+    for asiento, sid in game["jugadores"].items():
+        if sid:
+            estado_jugador = estado_base.copy()
+            estado_jugador["action_mask"] = env.get_action_mask(asiento).tolist()
+            estado_jugador["mi_asiento"] = asiento
+            socketio.emit('actualizar_estado', estado_jugador, room=sid)
+            
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    #app.run(debug=True, port=5000)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
