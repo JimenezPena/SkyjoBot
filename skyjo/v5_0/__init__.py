@@ -1,11 +1,7 @@
-"""Versión 5.0: observación con columnas, dueling enmascarado, n-step y soft update."""
+"""Versión 5.0 (en desarrollo): observación y red independientes del nº de jugadores, sobre la vista pública.
+Fase 2: observación + red + agente. El entrenamiento multijugador llega en la fase 3."""
 VERSION = "v5_0"
-from .env import SkyjoEnv, N_ACCIONES, N_ESCALARES, N_PLANOS_PROPIO
+from .env import SkyjoEnv, N_ACCIONES
+from .observacion import N_ESCALARES, observacion_desde_vista, a_tensores
 from .model import SkyjoDQN
 from .agente import AgenteDQN
-from .buffer import ReplayBuffer, NStepCollector
-from .acciones import seleccionar_accion, accion_greedy
-from .agents import (agente_aleatorio, agente_heuristico, agente_dqn,
-                     duelo, imprimir_duelo)
-from .trainer import entrenar_skyjo, entrenar_step
-from .config import CONFIG
