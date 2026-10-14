@@ -25,27 +25,26 @@
             flex-direction: column;
             align-items: center;
             margin: 0;
-            padding: 15px;
+            padding: 8px;
         }
-        h1 { margin: 5px 0 15px 0; font-size: 1.8rem; text-align: center; }
+        h1 { margin: 2px 0 8px 0; font-size: 1.4rem; text-align: center; }
         
         /* PANTALLA DE LOBBY */
         #lobby-screen {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 15px;
-            margin-top: 50px;
+            gap: 12px;
+            margin-top: 30px;
             background: rgba(255,255,255,0.05);
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+            padding: 20px;
+            border-radius: 10px;
             width: 90%;
-            max-width: 350px;
+            max-width: 320px;
             text-align: center;
         }
         .lobby-input {
-            padding: 10px;
+            padding: 8px;
             font-size: 1.1rem;
             border-radius: 6px;
             border: 1px solid #555;
@@ -58,26 +57,29 @@
 
         /* CONTENEDOR DE JUEGO */
         .game-container {
-            display: none; /* Oculto hasta que comience */
+            display: none;
             flex-direction: column;
             align-items: center;
-            gap: 15px;
-            width: 100%;
-            max-width: 760px;
-        }
-        .board {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
             gap: 8px;
-            background: rgba(255, 255, 255, 0.05);
-            padding: 10px;
-            border-radius: 12px;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 340px;
         }
+        
+        /* BANNER DE SALA COMPACTO */
+        #room-banner {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            text-align: center;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
         .boards-row {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 6px;
             width: 100%;
             align-items: center;
         }
@@ -85,33 +87,42 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 8px;
-            border-radius: 12px;
+            padding: 4px;
+            border-radius: 8px;
             transition: all 0.3s ease;
             border: 2px solid transparent;
             width: 100%;
-            max-width: 340px;
         }
         .board-wrapper.active-turn {
             background-color: rgba(39, 174, 96, 0.15);
             border-color: #27ae60;
-            box-shadow: 0 0 12px rgba(39, 174, 96, 0.4);
+            box-shadow: 0 0 8px rgba(39, 174, 96, 0.3);
         }
         .board-wrapper.active-turn .player-label { color: #2ec771; }
-        .player-label { font-weight: bold; font-size: 1rem; margin-bottom: 4px; }
+        .player-label { font-weight: bold; font-size: 0.8rem; margin-bottom: 2px; }
 
-        /* CARTAS */
+        /* TABLERO COMPACTO */
+        .board {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 6px;
+            border-radius: 8px;
+        }
+
+        /* CARTAS MÁS PEQUEÑAS */
         .card {
-            width: 58px;
-            height: 85px;
-            border-radius: 6px;
+            width: 44px;
+            height: 64px;
+            border-radius: 5px;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 1.5rem;
+            font-size: 1.1rem;
             font-weight: bold;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            border: 2px solid #ffffff33;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            border: 1.5px solid #ffffff33;
             cursor: pointer;
             user-select: none;
         }
@@ -120,39 +131,38 @@
         .card-low { background-color: var(--card-low); color: #fff; }
         .card-mid { background-color: var(--card-mid); color: #222; }
         .card-high { background-color: var(--card-high); color: #fff; }
-        .card-hidden { background-color: var(--card-back); color: #7f8c8d; border: 2px dashed #ffffff55; }
+        .card-hidden { background-color: var(--card-back); color: #7f8c8d; border: 1.5px dashed #ffffff55; }
         .card-removed { visibility: hidden; }
 
-        /* ZONA CENTRAL */
+        /* ZONA CENTRAL REDUCIDA */
         .middle-zone {
             display: flex;
             justify-content: space-around;
             align-items: center;
             width: 100%;
-            max-width: 340px;
             background: rgba(255, 255, 255, 0.08);
-            padding: 10px;
-            border-radius: 12px;
+            padding: 6px;
+            border-radius: 8px;
         }
-        .hand-wrapper { display: flex; align-items: flex-end; gap: 8px; }
+        .hand-wrapper { display: flex; align-items: flex-end; gap: 6px; }
         .btn-discard-slot {
-            width: 65px; height: 85px; background-color: #c62828; color: white;
-            border: 2px solid #ffffff99; border-radius: 6px; cursor: pointer;
+            width: 44px; height: 64px; background-color: #c62828; color: white;
+            border: 1.5px solid #ffffff99; border-radius: 5px; cursor: pointer;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            font-size: 1.2rem; font-weight: bold;
+            font-size: 0.9rem; font-weight: bold;
         }
-        .btn-discard-slot span { font-size: 0.55rem; text-transform: uppercase; margin-top: 2px; }
-        .deck-container { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-        .deck-title { font-size: 0.75rem; color: #aaa; text-transform: uppercase; }
+        .btn-discard-slot span { font-size: 0.45rem; text-transform: uppercase; margin-top: 1px; }
+        .deck-container { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+        .deck-title { font-size: 0.65rem; color: #aaa; text-transform: uppercase; }
 
-        .status-panel { text-align: center; font-size: 1rem; min-height: 35px; padding: 0 10px; }
+        .status-panel { text-align: center; font-size: 0.85rem; min-height: 25px; padding: 0 5px; }
         .btn-action {
             background-color: #27ae60; color: white; border: none;
-            padding: 10px 20px; font-size: 1rem; border-radius: 6px;
-            cursor: pointer; font-weight: bold; width: 100%; max-width: 300px;
+            padding: 8px 16px; font-size: 0.9rem; border-radius: 6px;
+            cursor: pointer; font-weight: bold; width: 100%; max-width: 250px;
         }
         .btn-action:hover { background-color: #2ec771; }
-        .error-txt { color: #e74c3c; font-size: 0.9rem; }
+        .error-txt { color: #e74c3c; font-size: 0.85rem; }
     </style>
 </head>
 <body>
