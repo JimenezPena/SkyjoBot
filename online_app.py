@@ -40,18 +40,21 @@ def tableros_publicos(env):
     t[:, :, :, 0] = np.where(t[:, :, :, 1] == 1, t[:, :, :, 0], 0)
     return t.tolist()
 
-def get_game():
+def _obtener_partida(almacen, clave, n, nivel):
     ahora = time.time()
-    for k in [k for k, g in games.items() if ahora - g["t"] > MAX_EDAD]:
-        del games[k]
+    for k in [k for k, g in almacen.items() if ahora - g["t"] > MAX_EDAD]:
+        del almacen[k]
 
-    gid = session.get("gid")
-    if gid not in games:
+    gid = session.get(clave)
+    if gid not in almacen:
         gid = uuid.uuid4().hex
-        session["gid"] = gid
-        games[gid] = {"env": SkyjoEnv(num_jugadores=2), "nivel": NIVEL_POR_DEFECTO, "t": ahora}
-    games[gid]["t"] = ahora
-    return games[gid]
+        session[clave] = gid
+        almacen[gid] = {"env": SkyjoEnv(num_jugadores=n), "nivel": nivel, "t": ahora}
+    almacen[gid]["t"] = ahora
+    return almacen[gid]
+
+def get_game():
+    return _obtener_partida(games, "gid", 2, NIVEL_POR_DEFECTO)
 
 def get_env():
     return get_game()["env"]
@@ -122,6 +125,54 @@ def ia_step():
     if not (0 <= accion_ia < len(mask)) or not mask[accion_ia]:      # red de seguridad: nunca bloquear la partida
         accion_ia = int(np.random.choice(np.flatnonzero(mask)))
     env.step(accion_ia)
+    return jsonify(get_state_response(env))
+
+# ---- Modo 4 jugadores: tú (asiento 0) contra tres bots (asientos 1, 2 y 3, en el orden de turno) ----
+# Los bots solo ven la vista pública. Por defecto son heurísticos (SKYJO_NIVEL_4); los DQN actuales son de 2 jugadores.
+NIVEL_4J = os.environ.get("SKYJO_NIVEL_4", "heuristico")
+games4 = {}
+
+def get_game4():
+    return _obtener_partida(games4, "gid4", 4, NIVEL_4J)
+
+@app.route('/cuatro')
+def cuatro():
+    return render_template('cuatro.html')
+
+@app.route('/api/4/reset', methods=['POST'])
+def reset_game4():
+    env = get_game4()["env"]
+    env.reset()
+    return jsonify(get_state_response(env))
+
+@app.route('/api/4/step', methods=['POST'])
+def step_game4():
+    env = get_game4()["env"]
+    accion = (request.get_json(silent=True) or {}).get('action')
+    if env.game_over:
+        return jsonify({"error": "Partida terminada"}), 400
+    if env.turno_actual != 0:
+        return jsonify({"error": "No es tu turno"}), 400
+    mask = env.get_action_mask(0)
+    if not isinstance(accion, int) or not (0 <= accion < len(mask)) or not mask[accion]:
+        return jsonify({"error": "Acción no permitida"}), 400
+    env.step(accion)
+    return jsonify(get_state_response(env))
+
+@app.route('/api/4/bot_step', methods=['POST'])
+def bot_step4():
+    game = get_game4()
+    env = game["env"]
+    if env.game_over:
+        return jsonify({"error": "Partida terminada"}), 400
+    if env.turno_actual == 0:
+        return jsonify({"error": "Es tu turno"}), 400
+    vista = construir_vista(env, env.turno_actual)
+    mask = vista.mask
+    accion = int(get_agente(game["nivel"])(vista))
+    if not (0 <= accion < len(mask)) or not mask[accion]:
+        accion = int(np.random.choice(np.flatnonzero(mask)))
+    env.step(accion)
     return jsonify(get_state_response(env))
 
 if __name__ == '__main__':
