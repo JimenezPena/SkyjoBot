@@ -24,6 +24,20 @@ def listar_niveles(ruta=None):
         return json.load(f)
 
 
+def jugadores_soportados(cfg):
+    """(mínimo, máximo) de asientos que admite un nivel. Opcional en niveles.json: "jugadores": [min, max]."""
+    if 'jugadores' in cfg:
+        return tuple(cfg['jugadores'])
+    if cfg['tipo'] == 'dqn':
+        return tuple(getattr(importlib.import_module(f"skyjo.{cfg['version']}"), 'JUGADORES', (2, 2)))
+    return (2, 8)
+
+
+def niveles_para(n, ruta=None):
+    """Nombres de los niveles que pueden jugar una partida de n asientos."""
+    return [k for k, cfg in listar_niveles(ruta).items() if jugadores_soportados(cfg)[0] <= n <= jugadores_soportados(cfg)[1]]
+
+
 def cargar_nivel(nombre, device="cpu", ruta=None):
     niveles = listar_niveles(ruta)
     if nombre not in niveles:

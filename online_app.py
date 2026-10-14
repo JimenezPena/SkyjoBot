@@ -12,7 +12,7 @@ import numpy as np
 
 from flask import Flask, render_template, jsonify, request, session
 from skyjo.v4_2 import SkyjoEnv            # motor de juego (las reglas son iguales en todas las versiones)
-from skyjo.niveles import cargar_nivel, listar_niveles
+from skyjo.niveles import cargar_nivel, listar_niveles, niveles_para
 from skyjo.vista import construir_vista
 
 app = Flask(__name__)
@@ -22,7 +22,7 @@ device = torch.device("cpu")
 
 # Oponente por defecto (el modelo 4.2). Se puede cambiar con la variable de entorno SKYJO_NIVEL
 # o por partida con {"nivel": "..."} en POST /api/reset (opcional: index.html no lo necesita).
-NIVEL_POR_DEFECTO = os.environ.get("SKYJO_NIVEL", "dqn_4.2")
+NIVEL_POR_DEFECTO = os.environ.get("SKYJO_NIVEL", "heuristico")
 
 _agentes = {}
 def get_agente(nivel):
@@ -129,11 +129,24 @@ def ia_step():
 
 # ---- Modo 4 jugadores: tú (asiento 0) contra tres bots (asientos 1, 2 y 3, en el orden de turno) ----
 # Los bots solo ven la vista pública. Por defecto son heurísticos (SKYJO_NIVEL_4); los DQN actuales son de 2 jugadores.
-NIVEL_4J = os.environ.get("SKYJO_NIVEL_4", "heuristico")
+NIVEL_4J = os.environ.get("SKYJO_NIVEL_4", "dqm_5.0")#"heuristico")
 games4 = {}
 
 def get_game4():
-    return _obtener_partida(games4, "gid4", 4, NIVEL_4J)
+    game = _obtener_partida(games4, "gid4", 4, NIVEL_4J)
+    nivel = game["nivel"] if game["nivel"] in niveles_para(4) else "heuristico"   # p. ej. un DQN de 2 jugadores no vale aquí
+    game.setdefault("niveles", [nivel] * 3)          # nivel de cada bot (asientos 1, 2 y 3)
+    return game
+
+def respuesta4(game):
+    r = get_state_response(game["env"])
+    r["niveles"] = game["niveles"]
+    return r
+
+@app.route('/api/4/niveles', methods=['GET'])
+def niveles4():
+    validos = niveles_para(4)
+    return jsonify({"niveles": validos, "por_defecto": NIVEL_4J if NIVEL_4J in validos else "heuristico"})
 
 @app.route('/cuatro')
 def cuatro():
@@ -141,13 +154,21 @@ def cuatro():
 
 @app.route('/api/4/reset', methods=['POST'])
 def reset_game4():
-    env = get_game4()["env"]
-    env.reset()
-    return jsonify(get_state_response(env))
+    game = get_game4()
+    datos = request.get_json(silent=True) or {}
+    niveles = datos.get('niveles') or ([datos['nivel']] * 3 if datos.get('nivel') else None)
+    if niveles is not None:
+        validos = niveles_para(4)
+        if not isinstance(niveles, list) or len(niveles) != 3 or any(x not in validos for x in niveles):
+            return jsonify({"error": "Niveles no válidos para 4 jugadores", "validos": validos}), 400
+        game["niveles"] = list(niveles)
+    game["env"].reset()
+    return jsonify(respuesta4(game))
 
 @app.route('/api/4/step', methods=['POST'])
 def step_game4():
-    env = get_game4()["env"]
+    game = get_game4()
+    env = game["env"]
     accion = (request.get_json(silent=True) or {}).get('action')
     if env.game_over:
         return jsonify({"error": "Partida terminada"}), 400
@@ -157,7 +178,7 @@ def step_game4():
     if not isinstance(accion, int) or not (0 <= accion < len(mask)) or not mask[accion]:
         return jsonify({"error": "Acción no permitida"}), 400
     env.step(accion)
-    return jsonify(get_state_response(env))
+    return jsonify(respuesta4(game))
 
 @app.route('/api/4/bot_step', methods=['POST'])
 def bot_step4():
@@ -169,11 +190,11 @@ def bot_step4():
         return jsonify({"error": "Es tu turno"}), 400
     vista = construir_vista(env, env.turno_actual)
     mask = vista.mask
-    accion = int(get_agente(game["nivel"])(vista))
+    accion = int(get_agente(game["niveles"][env.turno_actual - 1])(vista))
     if not (0 <= accion < len(mask)) or not mask[accion]:
         accion = int(np.random.choice(np.flatnonzero(mask)))
     env.step(accion)
-    return jsonify(get_state_response(env))
+    return jsonify(respuesta4(game))
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

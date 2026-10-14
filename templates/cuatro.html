@@ -293,6 +293,8 @@
         .link-vuelta { color: #aaa; font-size: 0.85rem; }
         @media (max-width: 600px) { .opponents .card { width: 30px; height: 44px; font-size: 0.85rem; } }
         /* Mesa 2x2 en sentido horario: tú abajo a la derecha; tras de ti juega el de abajo a la izquierda, luego arriba a la izquierda y arriba a la derecha */
+        .selector-bots { font-size: 0.9rem; color: #ccc; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center; }
+        .selector-bots select { background: #2c3e50; color: #fff; border: 1px solid #ffffff44; border-radius: 6px; padding: 4px 6px; }
         .mesa { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; justify-items: center; }
         .mesa .opponents { display: contents; }
         .mesa #wrapper-2 { grid-area: 1 / 1; }
@@ -313,6 +315,11 @@
 <body>
     <h1>Skyjo: tú contra 3 bots</h1>
     <div class="game-container">
+        <div class="selector-bots">
+            🤖 Bots:
+            <select id="sel-1"></select> <select id="sel-2"></select> <select id="sel-3"></select>
+            <span class="link-vuelta">(se aplica al reiniciar)</span>
+        </div>
         <div class="mesa">
         <div class="opponents" id="opponents"></div>
         <div id="wrapper-0" class="board-wrapper">
@@ -392,6 +399,7 @@
 
         function renderGame(state) {
             gameState = state;
+            if (state.niveles) state.niveles.forEach((nv, i) => { NOMBRES[i + 1] = `Bot ${i + 1} (${nv})`; });
             modoDescarte = false;
             const n = state.tableros.length;
             asegurarOponentes(n);
@@ -456,7 +464,11 @@
 
         async function nuevaPartida() {
             partidaId++;
-            const res = await fetch(API + '/reset', { method: 'POST' });
+            const niveles = [1, 2, 3].map(i => document.getElementById('sel-' + i).value);
+            const res = await fetch(API + '/reset', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ niveles: niveles })
+            });
             renderGame(await res.json());
             turnoBots(partidaId);      // por si el asiento inicial no fuera el tuyo
         }
@@ -489,7 +501,16 @@
             if (gameState.action_mask[accion]) enviarAccion(accion);
         }
 
-        nuevaPartida();
+        async function cargarNiveles() {
+            const d = await (await fetch(API + '/niveles')).json();
+            for (let i = 1; i <= 3; i++) {
+                const sel = document.getElementById('sel-' + i);
+                sel.innerHTML = d.niveles.map(n => `<option value="${n}">${n}</option>`).join('');
+                sel.value = d.por_defecto;
+            }
+        }
+
+        cargarNiveles().then(nuevaPartida);
     </script>
 </body>
 </html>
