@@ -60,9 +60,12 @@ def main():
         net = m.SkyjoDQN(2).to(device)
         net.load_state_dict(torch.load(cfg['SAVE_PATH'], map_location=device))
         net.eval()
-        r = m.duelo(m.agente_dqn(net, device), m.agente_heuristico, args.eval_games)
-        m.imprimir_duelo("FINAL vs heurístico", r)
-        meta['eval_vs_heuristico'] = r
+        if hasattr(m, 'evaluar_final'):                     # versiones multijugador (v5_0+)
+            meta['eval_vs_heuristicos'] = m.evaluar_final(net, device, args.eval_games, cfg.get('EVAL_JUGADORES', (4, 2)))
+        else:
+            r = m.duelo(m.agente_dqn(net, device), m.agente_heuristico, args.eval_games)
+            m.imprimir_duelo("FINAL vs heurístico", r)
+            meta['eval_vs_heuristico'] = r
     with open(os.path.splitext(cfg['SAVE_PATH'])[0] + '.meta.json', 'w', encoding='utf-8') as f:
         json.dump(meta, f, indent=2, ensure_ascii=False, default=float)
 

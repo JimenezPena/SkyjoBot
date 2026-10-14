@@ -1,0 +1,25 @@
+# ==============================================================================
+# Hiperparámetros de v5.0. Receta base = 4.2 (la que aprendió: BATCH 1024, TRAIN_FREQ 16, target duro cada
+# 1000 pasos, GAMMA 0.99, LR 1e-4), pero con partidas de JUGADORES asientos y una red compartida por todos.
+# Con JUGADORES=2 el entrenamiento equivale al de 4.2 (misma recompensa), y sirve de comprobación.
+# ==============================================================================
+CONFIG = {
+    'JUGADORES': 4,
+    'NUM_EPISODIOS': 20000,
+    'BUFFER_CAPACITY': 200000,
+    'BATCH_SIZE': 1024,
+    'GAMMA': 0.99,
+    'LR': 1e-4,
+    'TRAIN_FREQ': 16,
+    'EPSILON_START': 1.0,
+    'EPSILON_END': 0.05,
+    'TARGET_UPDATE_FREQ': 1000,
+    'WARMUP_STEPS': 2000,
+    'RECOMPENSA_FINAL': 1.5,     # recompensa final = 1.5 * (media de puntos de los rivales - mis puntos)
+    'LOG_EVERY': 250,
+    'EVAL_EVERY': 2500,          # duelo vs heurísticos cada 2500 episodios
+    'EVAL_GAMES': 300,           # partidas por evaluación (>= 1000 para conclusiones fiables)
+    'EVAL_JUGADORES': [4, 2],    # nº de asientos a evaluar; el primero decide el "mejor checkpoint"
+    'CKPT_DIR': 'checkpoints_5.0',
+    'SAVE_PATH': 'skyjo_dqn_model_5.0.pth',
+}
