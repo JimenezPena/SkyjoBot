@@ -75,3 +75,36 @@ def test_agente_v5_juega_partidas_completas_con_2_3_y_4_asientos():
                     n_partidas=n, semilla=0)
         assert r['_global']['truncadas'] == 0 and r['_global']['jugadores'] == n
         assert all(v['ilegales'] == 0 for k, v in r.items() if k != '_global')
+
+
+def _config_mini(tmp_path, jugadores):
+    from skyjo.v5_0 import CONFIG
+    c = dict(CONFIG, JUGADORES=jugadores, NUM_EPISODIOS=6, BUFFER_CAPACITY=2000, BATCH_SIZE=32, WARMUP_STEPS=40,
+             TRAIN_FREQ=4, TARGET_UPDATE_FREQ=50, LOG_EVERY=3, EVAL_EVERY=3, EVAL_GAMES=4,
+             EVAL_JUGADORES=[jugadores], CKPT_DIR=str(tmp_path / 'ck'), SAVE_PATH=str(tmp_path / 'm.pth'))
+    return c
+
+
+def test_entrenamiento_self_play_con_4_y_2_jugadores_corre_y_guarda_un_modelo_usable(tmp_path):
+    import skyjo.v5_0 as v5
+    for n in (4, 2):
+        d = tmp_path / str(n); d.mkdir()
+        cfg = _config_mini(d, n)
+        v5.entrenar_skyjo(cfg)
+        assert os.path.exists(cfg['SAVE_PATH']) and os.path.exists(cfg['CKPT_DIR'] + '/best.pth')
+        net = v5.SkyjoDQN(); net.load_state_dict(torch.load(cfg['SAVE_PATH']))
+        r = v5.evaluar_vs_heuristicos(net, "cpu", n, n_partidas=n)
+        assert r['_global']['truncadas'] == 0 and r['_dqn']['ilegales'] == 0
+
+
+def test_el_buffer_guarda_y_devuelve_observaciones_de_cualquier_n():
+    from skyjo.v5_0 import ReplayBuffer
+    for n in (2, 3, 5):
+        v = _vistas(n, 4)
+        obs = [observacion_desde_vista(x) for _, x in v]
+        b = ReplayBuffer(10, obs[0])
+        for o in obs:
+            b.push(o, 1, 0.5, o, False, v[0][1].mask)
+        o, a, r, no, d, m = b.sample(3)
+        assert o['tableros_otros'].shape == (3, max(n - 3, 0), 2, 3, 4) and a.shape == (3, 1) and m.shape == (3, N_ACCIONES)
+        assert SkyjoDQN()(o).shape == (3, N_ACCIONES)

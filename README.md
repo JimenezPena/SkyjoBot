@@ -6,7 +6,7 @@ DQN que aprende a jugar a Skyjo™ y servidor web para jugar humano contra IA. P
 skyjo/
   heuristico/   baseline sin pesos (funciona con cualquier nº de jugadores y cualquier versión del entorno)
   v4_2/         Dueling Double DQN, 26 acciones (modelo 4.1 + heurístico y duelos cada 2500 episodios)
-  v5_0/         observación y red independientes del nº de jugadores (2-8), desde la vista pública (en desarrollo: aún sin entrenador)
+  v5_0/         observación y red independientes del nº de jugadores (2-8), desde la vista pública, con entrenamiento self-play de 4 jugadores (en desarrollo)
   niveles.py    registro de niveles: cargar_nivel("nombre") -> agente válido con el entorno de cualquier versión
   vista.py      vista pública de un asiento (solo información visible) y adaptadores
   agentes.py    interfaz de agente agente(vista)->acción: humano, ruido epsilon
@@ -28,6 +28,7 @@ comparar qué decisiones de diseño y qué información de entrada hacen que una
 
 ```bash
 python train.py --version v4_2 --out-dir /content/drive/MyDrive/skyjo     # checkpoints y modelo en Drive
+python train.py --version v5_0 --out-dir /content/drive/MyDrive/skyjo     # self-play de 4 jugadores (--set JUGADORES=2 reproduce 4.2)
 python train.py --version v4_2 --set NUM_EPISODIOS=5000 LR=3e-4           # sobrescribe hiperparámetros
 python evaluate.py torneo --version v4_2 --ckpt-dir <carpeta_checkpoints> # cada checkpoint vs heurístico
 python evaluate.py niveles -n 300                                         # todos los niveles entre sí
