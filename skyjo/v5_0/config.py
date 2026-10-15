@@ -22,8 +22,8 @@ CONFIG = {
     'EVAL_JUGADORES': [4, 2],    # nº de asientos a evaluar; el primero decide el "mejor checkpoint"
     'CKPT_DIR': 'checkpoints_5.0',
     'SAVE_PATH': 'skyjo_dqn_model_5.1.pth',
-    'IMIT_EPISODIOS': 2500, # parametros para imitar partidas del heurístico para comenzar
-    'IMIT_EPOCHS': 20,
+    'IMIT_EPISODIOS': 1200, # parametros para imitar partidas del heurístico para comenzar
+    'IMIT_EPOCHS': 12,
     'IMIT_BATCH': 1024,
     'IMIT_LR': 1e-3,
     'EPSILON_START_IMIT': 0.3,
