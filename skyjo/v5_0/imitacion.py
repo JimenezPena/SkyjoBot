@@ -45,8 +45,12 @@ def paso_margen(policy_net, fuente, optimizer, config, device):
     q = policy_net(obs)
     q_legales = q.masked_fill(~m, -1e9)
     q_demo = q_legales.gather(1, a.unsqueeze(1)).squeeze(1)
-    q_legales.scatter_(1, a.unsqueeze(1), -1e9)      # excluye la acción demo del máximo
-    loss = F.relu(config['DEMO_MARGIN'] - (q_demo - q_legales.max(dim=1).values)).mean()
+    
+    # Clonamos antes de la operación in-place para evitar el error de versión de PyTorch
+    q_legales_max = q_legales.clone()
+    q_legales_max.scatter_(1, a.unsqueeze(1), -1e9)      # excluye la acción demo del máximo
+    
+    loss = F.relu(config['DEMO_MARGIN'] - (q_demo - q_legales_max.max(dim=1).values)).mean()
 
     optimizer.zero_grad()
     loss.backward()
