@@ -17,7 +17,7 @@ from .buffer import ReplayBuffer
 from .env import SkyjoEnv, N_ACCIONES
 from .model import SkyjoDQN
 from .observacion import observacion_desde_vista, a_tensores
-from .imitacion import preentrenar_imitacion
+from .imitacion import preentrenar_imitacion, paso_margen
 
 def entrenar_step(policy_net, target_net, replay_buffer, optimizer, batch_size, gamma, device):
     """Paso de optimización con Double Dueling DQN."""
@@ -65,10 +65,11 @@ def entrenar_skyjo(config):
 
     n_ep = config['NUM_EPISODIOS']
     epsilon = config['EPSILON_START']
-    
+    fuente = None
+        
     # ---- Fase previa: imitar al heurístico (behaviour cloning + buffer de demos) ----
     if config.get('IMIT_EPISODIOS', 0) > 0:
-        acc = preentrenar_imitacion(policy_net, buffer, config, device)
+        acc, fuente = preentrenar_imitacion(policy_net, buffer, config, device)
         target_net.load_state_dict(policy_net.state_dict())
         target_net.eval()
         epsilon = config.get('EPSILON_START_IMIT', 0.3)
@@ -122,6 +123,8 @@ def entrenar_skyjo(config):
                 if loss is not None:
                     hist_loss.append(loss)
             if global_step % config['TARGET_UPDATE_FREQ'] == 0:
+            	if fuente is not None and global_step < config['DEMO_STEPS']:
+                    paso_margen(policy_net, fuente, optimizer, config, device)
                 target_net.load_state_dict(policy_net.state_dict())
 
         epsilon = max(config['EPSILON_END'], epsilon * decay)

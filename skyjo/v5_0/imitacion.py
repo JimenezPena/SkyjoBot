@@ -24,6 +24,37 @@ from .env import SkyjoEnv, N_ACCIONES
 from .observacion import observacion_desde_vista, a_tensores
 
 
+class FuenteDemos:
+    """Guarda las demos del BC para reutilizarlas en la pérdida de margen de la fase DQN."""
+    def __init__(self, demos, acciones, masks):
+        self.demos, self.acciones, self.masks = demos, acciones, masks
+
+    def sample(self, batch_size, device):
+        i = np.random.randint(0, len(self.acciones), size=batch_size)
+        obs = {k: torch.from_numpy(v[i]).to(device) for k, v in self.demos.items()}
+        a = torch.from_numpy(self.acciones[i]).to(device)
+        m = torch.from_numpy(self.masks[i]).to(device)
+        return obs, a, m
+
+
+def paso_margen(policy_net, fuente, optimizer, config, device):
+    """Una actualización con la pérdida de margen DQfD sobre un batch de demos:
+       L = mean(relu(m - (Q(s,a*) - max_{a legal, a!=a*} Q(s,a))))
+       Se llama además del entrenar_step normal, mientras dure DEMO_STEPS."""
+    obs, a, m = fuente.sample(config['DEMO_BATCH'], device)
+    q = policy_net(obs)
+    q_legales = q.masked_fill(~m, -1e9)
+    q_demo = q_legales.gather(1, a.unsqueeze(1)).squeeze(1)
+    q_legales.scatter_(1, a.unsqueeze(1), -1e9)      # excluye la acción demo del máximo
+    loss = F.relu(config['DEMO_MARGIN'] - (q_demo - q_legales.max(dim=1).values)).mean()
+
+    optimizer.zero_grad()
+    loss.backward()
+    torch.nn.utils.clip_grad_norm_(policy_net.parameters(), max_norm=10.0)
+    optimizer.step()
+    return loss.item()
+    
+    
 def _recompensas_finales(env, coef):
     """finales[j] = coef * (media de puntos de los rivales - mis puntos). Igual que trainer.py."""
     puntos = np.asarray(env.calcular_puntuaciones_finales(), dtype=np.float64)
@@ -114,9 +145,12 @@ def _entrenar_bc(policy_net, demos, acciones, masks, config, device):
 
     return acc_final
 
-
+    
 def preentrenar_imitacion(policy_net, replay_buffer, config, device):
-    """Fase completa de imitación para v5.0. Devuelve la exactitud final del BC."""
+    """Fase completa de imitación. Devuelve (exactitud BC, FuenteDemos o None)."""
     env = SkyjoEnv(num_jugadores=int(config['JUGADORES']))
     demos, acciones, masks = _partidas_heuristicas(env, replay_buffer, config)
-    return _entrenar_bc(policy_net, demos, acciones, masks, config, device)
+    acc = _entrenar_bc(policy_net, demos, acciones, masks, config, device)
+    fuente = FuenteDemos(demos, acciones, masks) if config.get('DEMO_LAMBDA', 0) > 0 else None
+    return acc, fuente
+        
