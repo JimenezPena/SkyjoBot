@@ -27,4 +27,9 @@ CONFIG = {
     'IMIT_BATCH': 1024,
     'IMIT_LR': 1e-3,
     'EPSILON_START_IMIT': 0.3,
+    # --- DQfD opcional: pérdida de margen sobre demos durante la fase DQN ---
+    'DEMO_LAMBDA': 0.0,          # 0 = desactivado. Prueba 0.05; rango útil 0.01-0.1
+    'DEMO_STEPS': 100000,        # primeros pasos de DQN con la pérdida de margen
+    'DEMO_MARGIN': 0.8,          # margen m (mismo valor que usaba el paper de DQfD)
+    'DEMO_BATCH': 512,           # batch de demos por actualización
 }
