@@ -22,13 +22,13 @@ CONFIG = {
     'EVAL_JUGADORES': [4, 2],    # nº de asientos a evaluar; el primero decide el "mejor checkpoint"
     'CKPT_DIR': 'checkpoints_5.0',
     'SAVE_PATH': 'skyjo_dqn_model_5.1.pth',
-    'IMIT_EPISODIOS': 1500, # parametros para imitar partidas del heurístico para comenzar
-    'IMIT_EPOCHS': 12,
+    'IMIT_EPISODIOS': 2500, # parametros para imitar partidas del heurístico para comenzar
+    'IMIT_EPOCHS': 20,
     'IMIT_BATCH': 1024,
     'IMIT_LR': 1e-3,
     'EPSILON_START_IMIT': 0.3,
     # --- DQfD opcional: pérdida de margen sobre demos durante la fase DQN ---
-    'DEMO_LAMBDA': 0.0,          # 0 = desactivado. Prueba 0.05; rango útil 0.01-0.1
+    'DEMO_LAMBDA': 0.05,          # 0 = desactivado. Prueba 0.05; rango útil 0.01-0.1
     'DEMO_STEPS': 100000,        # primeros pasos de DQN con la pérdida de margen
     'DEMO_MARGIN': 0.8,          # margen m (mismo valor que usaba el paper de DQfD)
     'DEMO_BATCH': 512,           # batch de demos por actualización
