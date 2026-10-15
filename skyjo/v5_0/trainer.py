@@ -123,7 +123,7 @@ def entrenar_skyjo(config):
                 if loss is not None:
                     hist_loss.append(loss)
             if global_step % config['TARGET_UPDATE_FREQ'] == 0:
-            	if fuente is not None and global_step < config['DEMO_STEPS']:
+                if fuente is not None and global_step < config['DEMO_STEPS']:
                     paso_margen(policy_net, fuente, optimizer, config, device)
                 target_net.load_state_dict(policy_net.state_dict())
 
