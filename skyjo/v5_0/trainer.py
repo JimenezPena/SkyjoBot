@@ -118,13 +118,18 @@ def entrenar_skyjo(config):
 
             if len(buffer) > config['WARMUP_STEPS'] and global_step % config['TRAIN_FREQ'] == 0:
                 policy_net.train()
+                
+                # 1. Entrenamiento normal de DQN
                 loss = entrenar_step(policy_net, target_net, buffer, optimizer, config['BATCH_SIZE'],
                                      config['GAMMA'], device)
                 if loss is not None:
                     hist_loss.append(loss)
-            if global_step % config['TARGET_UPDATE_FREQ'] == 0:
+                
+                # 2. Paso de margen DQfD (si estamos dentro del límite de demos)
                 if fuente is not None and global_step < config['DEMO_STEPS']:
                     paso_margen(policy_net, fuente, optimizer, config, device)
+        
+            if global_step % config['TARGET_UPDATE_FREQ'] == 0:
                 target_net.load_state_dict(policy_net.state_dict())
 
         epsilon = max(config['EPSILON_END'], epsilon * decay)
