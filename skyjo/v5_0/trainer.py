@@ -74,7 +74,8 @@ def entrenar_skyjo(config):
         epsilon = config.get('EPSILON_START_IMIT', 0.3)
         print(f"Imitación completada (acc {acc:.3f}). "
               f"DQN desde epsilon={epsilon:.2f}, buffer={len(buffer)}")
-        evaluar_vs_heuristicos(policy_net, device, n, config['EVAL_GAMES'])          
+        res = evaluar_vs_heuristicos(policy_net, device, n, config['EVAL_GAMES'])
+        imprimir_vs_heuristicos(f"[Tras imitación: 1 DQN vs {n - 1} heurísticos", res)          
               
     decay = (config['EPSILON_END'] / config['EPSILON_START']) ** (1.0 / (0.80 * n_ep))
     os.makedirs(config['CKPT_DIR'], exist_ok=True)
