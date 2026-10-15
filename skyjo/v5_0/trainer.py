@@ -77,7 +77,20 @@ def entrenar_skyjo(config):
               f"DQN desde epsilon={epsilon:.2f}, buffer={len(buffer)}")
         res = evaluar_vs_heuristicos(policy_net, device, n, config['EVAL_GAMES'])
         imprimir_vs_heuristicos(f"[Tras imitación: 1 DQN vs {n - 1} heurísticos", res)          
-              
+    
+    if config.get('IMIT_EPISODIOS', 0) > 0:
+        # calibrar la escala de Q con TD sobre las demos (política protegida por el margen)
+        for _ in range(config.get('TD_PRESTEPS', 20000)):
+            policy_net.train()
+            entrenar_step(policy_net, target_net, buffer, optimizer, config['BATCH_SIZE'],
+                          config['GAMMA'], device)
+            if _ % config['TARGET_UPDATE_FREQ'] == 0:
+                target_net.load_state_dict(policy_net.state_dict())
+        print(f"Recalibración de la escala Q completada (acc {acc:.3f}). "
+              f"DQN desde epsilon={epsilon:.2f}, buffer={len(buffer)}")
+        res = evaluar_vs_heuristicos(policy_net, device, n, config['EVAL_GAMES'])
+        imprimir_vs_heuristicos(f"[Tras imitación: 1 DQN vs {n - 1} heurísticos", res)              
+                  
     decay = (config['EPSILON_END'] / config['EPSILON_START']) ** (1.0 / (0.80 * n_ep))
     os.makedirs(config['CKPT_DIR'], exist_ok=True)
     global_step, mejor_wr, hist_pts, hist_loss, t0 = 0, -1.0, [], [], time.time()
