@@ -82,8 +82,15 @@ def entrenar_skyjo(config):
         # calibrar la escala de Q con TD sobre las demos (política protegida por el margen)
         for _ in range(config.get('TD_PRESTEPS', 20000)):
             policy_net.train()
+            
+            # 1. Actualización DQN estándar
             entrenar_step(policy_net, target_net, buffer, optimizer, config['BATCH_SIZE'],
                           config['GAMMA'], device)
+            
+            # 2. Mantener la protección del margen DQfD para no perder la imitación
+            if fuente is not None:
+                paso_margen(policy_net, fuente, optimizer, config, device)
+
             if _ % config['TARGET_UPDATE_FREQ'] == 0:
                 target_net.load_state_dict(policy_net.state_dict())
         print(f"Recalibración de la escala Q completada (acc {acc:.3f}). "
