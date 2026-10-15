@@ -17,7 +17,7 @@ CONFIG = {
     'WARMUP_STEPS': 2000,
     'RECOMPENSA_FINAL': 1.5,     # recompensa final = 1.5 * (media de puntos de los rivales - mis puntos)
     'LOG_EVERY': 250,
-    'EVAL_EVERY': 1000,          # duelo vs heurísticos cada 2500 episodios
+    'EVAL_EVERY': 250,          # duelo vs heurísticos cada 2500 episodios
     'EVAL_GAMES': 300,           # partidas por evaluación (>= 1000 para conclusiones fiables)
     'EVAL_JUGADORES': [4, 2],    # nº de asientos a evaluar; el primero decide el "mejor checkpoint"
     'CKPT_DIR': 'checkpoints_5.0',
