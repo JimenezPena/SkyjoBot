@@ -45,7 +45,7 @@ def cargar_checkpoint(filepath, policy_net, target_net, optimizer, device):
         
         global_step = checkpoint['global_step']
         episodio_inicio = checkpoint['episodio'] + 1
-        print(f"[Checkpoint] Reanudando desde episodio {episodio_inicio}, global_step {global_step}, mejor_wr: {100 * mejor_wr:.1f}%"")
+        print(f"[Checkpoint] Reanudando desde episodio {episodio_inicio}, global_step {global_step}, mejor_wr: {100 * mejor_wr:.1f}%")
         return global_step, episodio_inicio, mejor_wr
     else:
         print("[Checkpoint] No se encontró ningún checkpoint previo. Empezando desde cero.")
