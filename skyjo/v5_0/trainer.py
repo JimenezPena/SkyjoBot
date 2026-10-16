@@ -19,6 +19,38 @@ from .model import SkyjoDQN
 from .observacion import observacion_desde_vista, a_tensores
 from .imitacion import preentrenar_imitacion, paso_margen
 
+def guardar_checkpoint(policy_net, target_net, optimizer, global_step, episodio, mejor_wr, filepath="/content/drive/MyDrive/SkyjoBot/checkpoint.pt"):
+    # Asegúrate de que el directorio existe en Google Drive
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    
+    checkpoint = {
+        'policy_net_state': policy_net.state_dict(),
+        'target_net_state': target_net.state_dict(),
+        'optimizer_state': optimizer.state_dict(),
+        'global_step': global_step,
+        'episodio': episodio,
+        'mejor_wr': mejor_wr
+    }
+    torch.save(checkpoint, filepath)
+    print(f"[Checkpoint] Guardado correctamente en episodio {episodio} (step {global_step})")
+    
+def cargar_checkpoint(filepath, policy_net, target_net, optimizer, device):
+    if os.path.exists(filepath):
+        print(f"[Checkpoint] Cargando punto de control desde {filepath}...")
+        checkpoint = torch.load(filepath, map_location=device)
+        
+        policy_net.load_state_dict(checkpoint['policy_net_state'])
+        target_net.load_state_dict(checkpoint['target_net_state'])
+        optimizer.load_state_dict(checkpoint['optimizer_state'])
+        
+        global_step = checkpoint['global_step']
+        episodio_inicio = checkpoint['episodio'] + 1
+        print(f"[Checkpoint] Reanudando desde episodio {episodio_inicio}, global_step {global_step}, mejor_wr: {100 * mejor_wr:.1f}%"")
+        return global_step, episodio_inicio, mejor_wr
+    else:
+        print("[Checkpoint] No se encontró ningún checkpoint previo. Empezando desde cero.")
+        return 0, 1, -1.0
+            
 def entrenar_step(policy_net, target_net, replay_buffer, optimizer, batch_size, gamma, device):
     """Paso de optimización con Double Dueling DQN."""
     if len(replay_buffer) < batch_size:
@@ -66,21 +98,30 @@ def entrenar_skyjo(config):
     n_ep = config['NUM_EPISODIOS']
     epsilon = config['EPSILON_START']
     fuente = None
+    
+    os.makedirs(config['CKPT_DIR'], exist_ok=True)
+
+    decay = (config['EPSILON_END'] / config['EPSILON_START']) ** (1.0 / (0.80 * n_ep))
+    hist_pts, hist_loss, t0 = [], [], time.time()
+    eval_n = list(config.get('EVAL_JUGADORES', [n]))
+    
+    # ---- Cargando checkpoint guardado si existe. Comenzar nuevo en caso contrario.
+    global_step, inicio_episodio, mejor_wr = cargar_checkpoint(f"{config['CKPT_DIR']}/checkpoint.pt", policy_net, target_net, optimizer, device)
         
     # ---- Fase previa: imitar al heurístico (behaviour cloning + buffer de demos) ----
-    if config.get('IMIT_EPISODIOS', 0) > 0:
+    if inicio_episodio == 1 and config.get('IMIT_EPISODIOS', 0) > 0:
         acc, fuente = preentrenar_imitacion(policy_net, buffer, config, device)
         target_net.load_state_dict(policy_net.state_dict())
         target_net.eval()
         epsilon = config.get('EPSILON_START_IMIT', 0.3)
+        
         print(f"Imitación completada (acc {acc:.3f}). "
               f"DQN desde epsilon={epsilon:.2f}, buffer={len(buffer)}")
         res = evaluar_vs_heuristicos(policy_net, device, n, config['EVAL_GAMES'])
         imprimir_vs_heuristicos(f"[Tras imitación: 1 DQN vs {n - 1} heurísticos", res)          
     
-    if config.get('IMIT_EPISODIOS', 0) > 0:
         # calibrar la escala de Q con TD sobre las demos (política protegida por el margen)
-        for _ in range(config.get('TD_PRESTEPS', 20000)):
+        for _ in range(config.get('CALIBRATION_PRESTEPS', 3000)):
             policy_net.train()
             
             # 1. Actualización DQN estándar
@@ -93,17 +134,14 @@ def entrenar_skyjo(config):
 
             if _ % config['TARGET_UPDATE_FREQ'] == 0:
                 target_net.load_state_dict(policy_net.state_dict())
+        
         print(f"Recalibración de la escala Q completada (acc {acc:.3f}). "
               f"DQN desde epsilon={epsilon:.2f}, buffer={len(buffer)}")
         res = evaluar_vs_heuristicos(policy_net, device, n, config['EVAL_GAMES'])
         imprimir_vs_heuristicos(f"[Tras imitación: 1 DQN vs {n - 1} heurísticos", res)              
                   
-    decay = (config['EPSILON_END'] / config['EPSILON_START']) ** (1.0 / (0.80 * n_ep))
-    os.makedirs(config['CKPT_DIR'], exist_ok=True)
-    global_step, mejor_wr, hist_pts, hist_loss, t0 = 0, -1.0, [], [], time.time()
-    eval_n = list(config.get('EVAL_JUGADORES', [n]))
-
-    for episodio in range(1, n_ep + 1):
+    
+    for episodio in range(inicio_episodio, n_ep + 1):
         env.reset()
         done, pendientes, rec_j0 = False, {}, 0.0
         while not done:
@@ -172,6 +210,10 @@ def entrenar_skyjo(config):
                 mejor_wr = wr
                 torch.save(policy_net.state_dict(), f"{config['CKPT_DIR']}/best.pth")
                 print(f"   -> nuevo mejor checkpoint (winrate {100 * mejor_wr:.1f}% con {eval_n[0]} jugadores)")
+                guardar_checkpoint(policy_net, target_net, optimizer, global_step, episodio, mejor_wr,  f"{config['CKPT_DIR']}/checkpoint.pt")
+
+        if episodio % config['SAVE_EVERY'] == 0:
+            guardar_checkpoint(policy_net, target_net, optimizer, global_step, episodio, mejor_wr,  f"{config['CKPT_DIR']}/checkpoint.pt")
 
     torch.save(policy_net.state_dict(), config['SAVE_PATH'])
     print(f"\n¡Entrenamiento completado! Modelo guardado en '{config['SAVE_PATH']}'. Mejor winrate: {100 * mejor_wr:.1f}%")

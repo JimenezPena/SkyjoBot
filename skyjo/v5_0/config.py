@@ -16,18 +16,19 @@ CONFIG = {
     'TARGET_UPDATE_FREQ': 1000,
     'WARMUP_STEPS': 2000,
     'RECOMPENSA_FINAL': 1.5,     # recompensa final = 1.5 * (media de puntos de los rivales - mis puntos)
+    'SAVE_EVERY': 250,
     'LOG_EVERY': 250,
     'EVAL_EVERY': 250,          # duelo vs heurísticos cada 2500 episodios
     'EVAL_GAMES': 300,           # partidas por evaluación (>= 1000 para conclusiones fiables)
     'EVAL_JUGADORES': [4, 2],    # nº de asientos a evaluar; el primero decide el "mejor checkpoint"
-    'CKPT_DIR': 'checkpoints_5.0',
+    'CKPT_DIR': 'checkpoints_5.1',
     'SAVE_PATH': 'skyjo_dqn_model_5.1.pth',
     'IMIT_EPISODIOS': 1200, # parametros para imitar partidas del heurístico para comenzar
     'IMIT_EPOCHS': 12,
     'IMIT_BATCH': 1024,
     'IMIT_LR': 1e-3,
     'EPSILON_START_IMIT': 0.3,
-    'TD_PRESTEPS': 1000,
+    'CALIBRATION_PRESTEPS': 1000,
     # --- DQfD opcional: pérdida de margen sobre demos durante la fase DQN ---
     'DEMO_LAMBDA': 0.05,          # 0 = desactivado. Prueba 0.05; rango útil 0.01-0.1
     'DEMO_STEPS': 100000,        # primeros pasos de DQN con la pérdida de margen
