@@ -212,7 +212,7 @@ def entrenar_skyjo(config):
                 mejor_wr = wr
                 torch.save(policy_net.state_dict(), f"{config['CKPT_DIR']}/best.pth")
                 print(f"   -> nuevo mejor checkpoint (winrate {100 * mejor_wr:.1f}% con {eval_n[0]} jugadores)")
-                guardar_checkpoint(policy_net, target_net, optimizer, global_step, episodio, mejor_wr,  f"{config['CKPT_DIR']}/checkpoint.pt")
+                guardar_checkpoint(policy_net, target_net, optimizer, global_step, episodio, mejor_wr,  f"{config['CKPT_DIR']}/best_checkpoint.pt")
 
         if episodio % config['SAVE_EVERY'] == 0:
             guardar_checkpoint(policy_net, target_net, optimizer, global_step, episodio, mejor_wr,  f"{config['CKPT_DIR']}/checkpoint.pt")
