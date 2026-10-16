@@ -231,13 +231,13 @@ def entrenar_skyjo(config):
             for k, nj in enumerate(eval_n):
                 res = evaluar_vs_heuristicos(policy_net, device, nj, config['EVAL_GAMES'])
                 imprimir_vs_heuristicos(f"[ep {episodio}] 1 DQN vs {nj - 1} heurísticos", res)
-                if k == 0:
+                if nj == n:
                     wr = res['_dqn']['winrate']
             torch.save(policy_net.state_dict(), f"{config['CKPT_DIR']}/ep{episodio}.pth")
             if wr > mejor_wr:
                 mejor_wr = wr
                 torch.save(policy_net.state_dict(), f"{config['CKPT_DIR']}/best.pth")
-                print(f"   -> nuevo mejor checkpoint (winrate {100 * mejor_wr:.1f}% con {eval_n[0]} jugadores)")
+                print(f"   -> nuevo mejor checkpoint (winrate {100 * mejor_wr:.1f}% con {n} jugadores)")
                 guardar_checkpoint(policy_net, target_net, optimizer, global_step, episodio, mejor_wr, epsilon, buffer, f"{config['CKPT_DIR']}/best_checkpoint.pt")
 
         if episodio % config['SAVE_EVERY'] == 0:
