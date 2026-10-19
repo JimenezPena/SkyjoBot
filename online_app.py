@@ -26,7 +26,7 @@ device = torch.device("cpu")
 
 # Oponente por defecto (el modelo 4.2). Se puede cambiar con la variable de entorno SKYJO_NIVEL
 # o por partida con {"nivel": "..."} en POST /api/reset (opcional: index.html no lo necesita).
-NIVEL_POR_DEFECTO = os.environ.get("SKYJO_NIVEL", "heuristico")
+NIVEL_POR_DEFECTO = os.environ.get("SKYJO_NIVEL", "dqn_5.1")
 
 _agentes = {}
 def get_agente(nivel):
@@ -133,7 +133,7 @@ def ia_step():
 
 # ---- Modo 4 jugadores: tú (asiento 0) contra tres bots (asientos 1, 2 y 3, en el orden de turno) ----
 # Los bots solo ven la vista pública. Por defecto son heurísticos (SKYJO_NIVEL_4); los DQN actuales son de 2 jugadores.
-NIVEL_4J = os.environ.get("SKYJO_NIVEL_4", "dqm_5.0")#"heuristico")
+NIVEL_4J = os.environ.get("SKYJO_NIVEL_4", "dqn_5.1")#"heuristico")
 games4 = {}
 
 def get_game4():
