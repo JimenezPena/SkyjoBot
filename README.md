@@ -109,6 +109,14 @@ python -m skyjo.consola humano heuristico heuristico heuristico
 python evaluate.py partida heuristico dqn_4.2 -n 300
 ```
 
+Con `--plots [carpeta]` (requiere `matplotlib`, solo en `requirements-dev.txt`) se imprimen además las distribuciones
+(mediana, desviación, p90, brecha al ganador, % de cierres, % de cierres doblados) y se guardan cinco histogramas:
+puntos por jugador, puntos respecto al ganador, posición en el ranking, jugadas por partida y cierres.
+
+```bash
+python evaluate.py partida -n 1000 --plots plots dqn_5.1 heuristico heuristico heuristico
+```
+
 ## Historial de versiones
 
 heuristico: bot sencillo (coge el descarte si ahorra >= 3 puntos esperados, coloca donde más gana y, si la carta es del mazo y gana < 2, la descarta y destapa una oculta). Referencia para medir el resto.

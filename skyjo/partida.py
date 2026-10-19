@@ -30,6 +30,7 @@ class Resultado:
     columnas: List[int]               # columnas eliminadas por asiento
     cerrador: Optional[int]
     extra: dict = field(default_factory=dict)
+    penalizada: bool = False          # el cerrador no tenía la puntuación más baja y se le dobló
 
 
 def jugar_partida(agentes, motor=None, max_pasos=3000, on_paso=None):
@@ -56,10 +57,12 @@ def jugar_partida(agentes, motor=None, max_pasos=3000, on_paso=None):
     columnas = [int((env.tableros[k, :, :, 1] == -1).sum()) // 3 for k in range(n)]   # antes de destapar todo
     puntos = [int(p) for p in env.calcular_puntuaciones_finales()]
     mejor = min(puntos)
+    c = env.cerrador_id
+    penalizada = bool(c is not None and puntos[c] > 0 and 2 * min(q for k, q in enumerate(puntos) if k != c) <= puntos[c])
     extra = {'regalos': list(env.regalos)} if hasattr(env, 'regalos') else {}
     return Resultado(puntos=puntos, posiciones=[1 + sum(q < p for q in puntos) for p in puntos],
                      ganadores=[k for k, p in enumerate(puntos) if p == mejor], pasos=pasos, truncada=truncada,
-                     ilegales=ilegales, columnas=columnas, cerrador=env.cerrador_id, extra=extra)
+                     ilegales=ilegales, columnas=columnas, cerrador=env.cerrador_id, extra=extra, penalizada=penalizada)
 
 
 def _nombres(agentes):
@@ -71,9 +74,10 @@ def _nombres(agentes):
     return out
 
 
-def evaluar(agentes, n_partidas=100, motor=None, max_pasos=3000, semilla=None):
+def evaluar(agentes, n_partidas=100, motor=None, max_pasos=3000, semilla=None, detalle=False):
     """Juega n_partidas rotando los asientos (todas las permutaciones si n <= 4, para que cada agente tenga
-    todos los vecinos posibles) y devuelve métricas por agente. Los empates reparten la victoria."""
+    todos los vecinos posibles) y devuelve métricas por agente. Los empates reparten la victoria.
+    Con detalle=True añade res['_partidas']: un registro por partida (para skyjo.graficos)."""
     n = len(agentes)
     nombres = _nombres(agentes)
     rng = random.Random(semilla)
@@ -81,11 +85,16 @@ def evaluar(agentes, n_partidas=100, motor=None, max_pasos=3000, semilla=None):
     if perms:
         rng.shuffle(perms)
     acc = {k: dict(partidas=0, victorias=0.0, puntos=0.0, posicion=0.0, columnas=0.0, ilegales=0) for k in nombres}
-    truncadas = 0
+    truncadas, partidas = 0, []
     for g in range(n_partidas):
         p = perms[g % len(perms)] if perms else rng.sample(range(n), n)       # asiento s lo ocupa el agente p[s]
         r = jugar_partida([agentes[i] for i in p], motor, max_pasos)
         truncadas += r.truncada
+        if detalle:
+            partidas.append(dict(
+                jugadores=[nombres[i] for i in p], puntos=list(r.puntos), posiciones=list(r.posiciones),
+                pasos=r.pasos, truncada=r.truncada, penalizada=r.penalizada,
+                cerrador=None if r.cerrador is None else nombres[p[r.cerrador]]))
         for s, i in enumerate(p):
             a = acc[nombres[i]]
             a['partidas'] += 1
@@ -98,6 +107,8 @@ def evaluar(agentes, n_partidas=100, motor=None, max_pasos=3000, semilla=None):
         res[k] = dict(partidas=a['partidas'], winrate=a['victorias'] / m, puntos=a['puntos'] / m,
                       posicion=a['posicion'] / m, columnas=a['columnas'] / m, ilegales=a['ilegales'])
     res['_global'] = dict(partidas=n_partidas, truncadas=truncadas, jugadores=n)
+    if detalle:
+        res['_partidas'] = partidas
     return res
 
 
@@ -106,5 +117,5 @@ def imprimir_evaluacion(res):
     print(f"{g['partidas']} partidas, {g['jugadores']} jugadores" + (f"  ({g['truncadas']} truncadas)" if g['truncadas'] else ""))
     print(f"{'agente':<22}{'win%':>7}{'puntos':>8}{'pos.':>6}{'cols':>6}{'ilegales':>9}")
     for k, v in res.items():
-        if k != '_global':
+        if not k.startswith('_'):
             print(f"{k:<22}{100 * v['winrate']:>7.1f}{v['puntos']:>8.1f}{v['posicion']:>6.2f}{v['columnas']:>6.2f}{v['ilegales']:>9}")
