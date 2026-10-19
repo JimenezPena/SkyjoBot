@@ -34,4 +34,12 @@ CONFIG = {
     'DEMO_STEPS': 100000,        # primeros pasos de DQN con la pérdida de margen
     'DEMO_MARGIN': 0.8,          # margen m (mismo valor que usaba el paper de DQfD)
     'DEMO_BATCH': 512,           # batch de demos por actualización
+    # --- Rivales (ver rivales.py): None = self-play puro (todos los asientos aprenden) ---
+    'RIVALES': {'heuristico': 0.7, 'actual': 0.15, 'checkpoint': 0.15},   # pesos para sortear cada asiento rival
+    'RIVALES_FIN': None,         # p. ej. {'heuristico': 0.3, 'actual': 0.4, 'checkpoint': 0.3}: interpolación lineal
+    'RIVALES_CKPT': [],          # modelos externos como rivales fijos, p. ej. ['modelos/v5_1.pth']
+    'ASIENTOS_APRENDIZ': 1,      # asientos (al azar) que aprenden en cada partida; JUGADORES = como self-puro
+    'POOL_EVERY': 1000,          # episodios entre instantáneas de la red para el pool de checkpoints
+    'POOL_MAX': 5,               # instantáneas que se conservan
+    'RIVAL_EPSILON': 0.05,       # ruido de los rivales basados en red
 }

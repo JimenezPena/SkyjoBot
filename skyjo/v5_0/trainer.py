@@ -1,4 +1,4 @@
-"""Entrenamiento self-play de v5.0: una sola red compartida juega todos los asientos de una partida de N jugadores
+"""Entrenamiento de v5.0 (self-play o contra una mezcla de rivales, ver rivales.py): una sola red compartida de N jugadores
 y cada asiento aporta sus propias transiciones (observación relativa a su asiento). Recompensa:
   - intermedia: la del entorno (shaping por potencial, igual que 4.2)
   - final: RECOMPENSA_FINAL * (media de puntos de los rivales - mis puntos)   [con 2 jugadores = 4.2]"""
@@ -18,6 +18,7 @@ from .env import SkyjoEnv, N_ACCIONES
 from .model import SkyjoDQN
 from .observacion import observacion_desde_vista, a_tensores
 from .imitacion import preentrenar_imitacion, paso_margen
+from .rivales import PoolRivales, pesos_en
 
 def guardar_checkpoint(policy_net, target_net, optimizer, global_step, episodio, mejor_wr, epsilon, buffer, filepath="/content/drive/MyDrive/SkyjoBot/checkpoint.pt"):
     # Asegúrate de que el directorio existe en Google Drive
@@ -48,7 +49,7 @@ def guardar_checkpoint(policy_net, target_net, optimizer, global_step, episodio,
 def cargar_checkpoint(filepath, policy_net, target_net, optimizer, buffer, device):
     if os.path.exists(filepath):
         print(f"[Checkpoint] Cargando punto de control desde {filepath}...")
-        checkpoint = torch.load(filepath, map_location=device)
+        checkpoint = torch.load(filepath, map_location=device, weights_only=False)   # el buffer son arrays numpy (torch>=2.6 lo rechaza por defecto)
         
         policy_net.load_state_dict(checkpoint['policy_net_state'])
         target_net.load_state_dict(checkpoint['target_net_state'])
@@ -128,13 +129,23 @@ def entrenar_skyjo(config):
     os.makedirs(config['CKPT_DIR'], exist_ok=True)
 
     decay = (config['EPSILON_END'] / config['EPSILON_START']) ** (1.0 / (0.80 * n_ep))
-    hist_pts, hist_loss, t0 = [], [], time.time()
-    eval_n = list(config.get('EVAL_JUGADORES', [n]))
+    hist_pts, hist_apr, hist_loss, t0 = [], [], [], time.time()
+    eval_n = [n] + [x for x in config.get('EVAL_JUGADORES', []) if x != n]     # el entrenado va primero: decide el mejor checkpoint
     
     # ---- Cargando checkpoint guardado si existe. Comenzar nuevo en caso contrario.
     global_step, inicio_episodio, mejor_wr, ckpt_epsilon = cargar_checkpoint(f"{config['CKPT_DIR']}/checkpoint.pt", policy_net, target_net, optimizer, buffer, device)
     
     epsilon = ckpt_epsilon if ckpt_epsilon is not None else config['EPSILON_START']
+
+    # ---- Rivales: mezcla de heurísticos / red actual / checkpoints (RIVALES=None -> self-play puro, todos aprenden)
+    pool, pool_path = None, f"{config['CKPT_DIR']}/pool.pt"
+    if config.get('RIVALES'):
+        pool = PoolRivales(policy_net, device, config.get('RIVAL_EPSILON', 0.05), config.get('POOL_MAX', 5),
+                           config.get('RIVALES_CKPT', []))
+        if os.path.exists(pool_path):
+            pool.cargar(pool_path)
+        print(f"Rivales: {config['RIVALES']} -> {config.get('RIVALES_FIN') or 'sin cambio'} | "
+              f"{config.get('ASIENTOS_APRENDIZ', 1)} asiento(s) aprendiz al azar | checkpoints en el pool: {len(pool)}")
         
     # ---- Fase previa: imitar al heurístico (behaviour cloning + buffer de demos) ----
     if inicio_episodio == 1 and config.get('IMIT_EPISODIOS', 0) > 0:
@@ -167,65 +178,91 @@ def entrenar_skyjo(config):
               f"DQN desde epsilon={epsilon:.2f}, buffer={len(buffer)}")
         res = evaluar_vs_heuristicos(policy_net, device, n, config['EVAL_GAMES'])
         imprimir_vs_heuristicos(f"[Tras imitación: 1 DQN vs {n - 1} heurísticos", res)              
-                  
+        if pool is not None:
+            pool.anadir_instantanea(policy_net, 0)       # la red imitadora es el primer 'checkpoint antiguo'
     
     for episodio in range(inicio_episodio, n_ep + 1):
         env.reset()
-        done, pendientes, rec_j0 = False, {}, 0.0
+        if pool is not None:
+            k = min(max(int(config.get('ASIENTOS_APRENDIZ', 1)), 1), n)
+            aprendices = set(random.sample(range(n), k))                    # asiento(s) que aprenden: al azar cada partida
+            pesos = pesos_en(config, episodio / n_ep)
+            rivales = {s: pool.elegir(pesos) for s in range(n) if s not in aprendices}
+        else:
+            aprendices, rivales = set(range(n)), {}
+        done, pendientes, rec_apr = False, {}, 0.0
         while not done:
             j = env.turno_actual
             vista = construir_vista(env, j)
-            obs = observacion_desde_vista(vista)
-            if random.random() < epsilon:
-                accion = int(random.choice(np.flatnonzero(vista.mask)))
+
+            if j in rivales:                                                 # turno de un rival: no genera datos
+                accion = int(rivales[j](vista))
+                if not vista.mask[accion]:
+                    accion = int(random.choice(np.flatnonzero(vista.mask)))
+                _, reward, done, _ = env.step(accion)
             else:
-                accion = _greedy(policy_net, obs, vista.mask, device)
+                obs = observacion_desde_vista(vista)
+                if random.random() < epsilon:
+                    accion = int(random.choice(np.flatnonzero(vista.mask)))
+                else:
+                    accion = _greedy(policy_net, obs, vista.mask, device)
 
-            if j in pendientes:
-                po, pa, pr = pendientes[j]
-                buffer.push(po, pa, pr, obs, False, vista.mask)
+                if j in pendientes:
+                    po, pa, pr = pendientes[j]
+                    buffer.push(po, pa, pr, obs, False, vista.mask)
 
-            _, reward, done, _ = env.step(accion)
-            global_step += 1
-            if j == 0:
-                rec_j0 += reward
+                _, reward, done, _ = env.step(accion)
+                global_step += 1                                             # solo cuentan los pasos del aprendiz
+                rec_apr += reward
+                if not done:
+                    pendientes[j] = (obs, accion, reward)
 
-            if not done:
-                pendientes[j] = (obs, accion, reward)
-            else:
+            if done:
                 puntos = np.asarray(env.calcular_puntuaciones_finales(), dtype=np.float64)
                 media_riv = (puntos.sum() - puntos) / (n - 1)
                 finales = config['RECOMPENSA_FINAL'] * (media_riv - puntos)
                 hist_pts.append(puntos)
-                buffer.push(obs, accion, reward + finales[j], obs, True, vacia)
+                hist_apr.append((puntos[sorted(aprendices)].mean(),
+                                 puntos[[s for s in range(n) if s not in aprendices]].mean() if rivales else float('nan')))
+                if j not in rivales:
+                    buffer.push(obs, accion, reward + finales[j], obs, True, vacia)
                 for s, (po, pa, pr) in pendientes.items():
                     if s != j:
                         buffer.push(po, pa, pr + finales[s], po, True, vacia)
 
+            if j in rivales:
+                continue                                                     # entrenar solo tras pasos del aprendiz
+
             if len(buffer) > config['WARMUP_STEPS'] and global_step % config['TRAIN_FREQ'] == 0:
                 policy_net.train()
-                
+
                 # 1. Entrenamiento normal de DQN
                 loss = entrenar_step(policy_net, target_net, buffer, optimizer, config['BATCH_SIZE'],
                                      config['GAMMA'], device)
                 if loss is not None:
                     hist_loss.append(loss)
-                
+
                 # 2. Paso de margen DQfD (si estamos dentro del límite de demos)
                 if fuente is not None and global_step < config['DEMO_STEPS']:
                     paso_margen(policy_net, fuente, optimizer, config, device)
-        
+
             if global_step % config['TARGET_UPDATE_FREQ'] == 0:
                 target_net.load_state_dict(policy_net.state_dict())
 
         epsilon = max(config['EPSILON_END'], epsilon * decay)
 
+        if pool is not None and episodio % config.get('POOL_EVERY', 1000) == 0:
+            pool.anadir_instantanea(policy_net, episodio)
+
         if episodio % config['LOG_EVERY'] == 0:
-            p = np.mean(hist_pts[-config['LOG_EVERY']:], axis=0)
             l = np.mean(hist_loss[-500:]) if hist_loss else float('nan')
-            print(f"Ep {episodio:>6}/{n_ep} | eps {epsilon:.3f} | pasos {global_step:>8} | "
-                  f"pts self-play {' / '.join(f'{x:5.1f}' for x in p)} | loss {l:.4f} | "
-                  f"Recompensa J0: {rec_j0:6.1f} | {(time.time() - t0) / 60:.1f} min")
+            if pool is not None:
+                pa = np.nanmean(np.array(hist_apr[-config['LOG_EVERY']:], dtype=float), axis=0)
+                pts = f"pts aprendiz {pa[0]:5.1f} | rivales {pa[1]:5.1f}"
+            else:
+                pts = "pts self-play " + ' / '.join(f'{x:5.1f}' for x in np.mean(hist_pts[-config['LOG_EVERY']:], axis=0))
+            print(f"Ep {episodio:>6}/{n_ep} | eps {epsilon:.3f} | pasos {global_step:>8} | {pts} | loss {l:.4f} | "
+                  f"Recompensa aprendiz: {rec_apr:6.1f} | {(time.time() - t0) / 60:.1f} min")
 
         if episodio % config['EVAL_EVERY'] == 0:
             for k, nj in enumerate(eval_n):
@@ -242,6 +279,8 @@ def entrenar_skyjo(config):
 
         if episodio % config['SAVE_EVERY'] == 0:
             guardar_checkpoint(policy_net, target_net, optimizer, global_step, episodio, mejor_wr, epsilon, buffer, f"{config['CKPT_DIR']}/checkpoint.pt")
+            if pool is not None:
+                pool.guardar(pool_path)
 
     torch.save(policy_net.state_dict(), config['SAVE_PATH'])
     print(f"\n¡Entrenamiento completado! Modelo guardado en '{config['SAVE_PATH']}'. Mejor winrate: {100 * mejor_wr:.1f}%")
