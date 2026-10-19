@@ -79,9 +79,10 @@ def test_agente_v5_juega_partidas_completas_con_2_3_y_4_asientos():
 
 def _config_mini(tmp_path, jugadores):
     from skyjo.v5_0 import CONFIG
-    c = dict(CONFIG, JUGADORES=jugadores, NUM_EPISODIOS=6, BUFFER_CAPACITY=2000, BATCH_SIZE=32, WARMUP_STEPS=40,
-             TRAIN_FREQ=4, TARGET_UPDATE_FREQ=50, LOG_EVERY=3, EVAL_EVERY=3, EVAL_GAMES=4,
-             EVAL_JUGADORES=[jugadores], CKPT_DIR=str(tmp_path / 'ck'), SAVE_PATH=str(tmp_path / 'm.pth'))
+    c = dict(CONFIG, JUGADORES=jugadores, NUM_EPISODIOS=4, BUFFER_CAPACITY=2000, BATCH_SIZE=32, WARMUP_STEPS=40,
+             TRAIN_FREQ=4, TARGET_UPDATE_FREQ=50, LOG_EVERY=2, EVAL_EVERY=2, EVAL_GAMES=2,
+             EVAL_JUGADORES=[jugadores], CKPT_DIR=str(tmp_path / 'ck'), SAVE_PATH=str(tmp_path / 'm.pth'),
+             SAVE_EVERY=2, IMIT_EPISODIOS=3, IMIT_EPOCHS=1, CALIBRATION_PRESTEPS=3, DEMO_STEPS=50, RIVALES=None)
     return c
 
 
@@ -108,3 +109,30 @@ def test_el_buffer_guarda_y_devuelve_observaciones_de_cualquier_n():
         o, a, r, no, d, m = b.sample(3)
         assert o['tableros_otros'].shape == (3, max(n - 3, 0), 2, 3, 4) and a.shape == (3, 1) and m.shape == (3, N_ACCIONES)
         assert SkyjoDQN()(o).shape == (3, N_ACCIONES)
+
+
+def test_pesos_de_rivales_se_interpolan_y_sin_checkpoints_se_usa_el_heuristico():
+    from skyjo.v5_0.rivales import pesos_en, PoolRivales
+    from skyjo.heuristico import AgenteHeuristico
+    cfg = {'RIVALES': {'heuristico': 1.0}, 'RIVALES_FIN': {'heuristico': 0.0, 'actual': 1.0}}
+    assert pesos_en(cfg, 0.0)['heuristico'] == 1.0
+    p = pesos_en(cfg, 0.5)
+    assert abs(p['heuristico'] - 0.5) < 1e-9 and abs(p['actual'] - 0.5) < 1e-9 and p['checkpoint'] == 0.0
+    pool = PoolRivales(SkyjoDQN(), "cpu")
+    assert isinstance(pool.elegir({'heuristico': 0, 'actual': 0, 'checkpoint': 1}), AgenteHeuristico)   # pool vacío
+    assert isinstance(pool.elegir({'heuristico': 0, 'actual': 0, 'checkpoint': 0}), AgenteHeuristico)   # sin pesos
+
+
+def test_entrenamiento_contra_mezcla_de_rivales_con_asiento_aleatorio(tmp_path):
+    import skyjo.v5_0 as v5
+    torch.manual_seed(0)
+    torch.save(v5.SkyjoDQN().state_dict(), tmp_path / "externo.pth")
+    for n, k in ((4, 2), (2, 1)):
+        d = tmp_path / f"{n}_{k}"; d.mkdir()
+        cfg = dict(_config_mini(d, n), RIVALES={'heuristico': 0.4, 'actual': 0.3, 'checkpoint': 0.3},
+                   RIVALES_FIN={'heuristico': 0.2, 'actual': 0.4, 'checkpoint': 0.4},
+                   RIVALES_CKPT=[str(tmp_path / "externo.pth")], ASIENTOS_APRENDIZ=k, POOL_EVERY=2, POOL_MAX=2)
+        v5.entrenar_skyjo(cfg)
+        assert os.path.exists(cfg['SAVE_PATH']) and os.path.exists(cfg['CKPT_DIR'] + '/pool.pt')
+        assert len(torch.load(cfg['CKPT_DIR'] + '/pool.pt')) <= 2
+        v5.entrenar_skyjo(dict(cfg, NUM_EPISODIOS=6))        # reanuda desde el checkpoint (con el pool guardado)

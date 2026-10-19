@@ -2,6 +2,8 @@
   "heuristico": {"tipo": "heuristico"},
   "dqn_4.2": {"tipo": "dqn", "version": "v4_2", "modelo": "modelos/v4_2.pth"},
   "dqn_5.0": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_0.pth"},
+  "dqn_5.0.2j": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_0_2j.pth"},
   "dqn_5.1": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_1.pth"},
+  "dqn_5.1.2j": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_1_2j.pth"},
   "aleatorio": {"tipo": "aleatorio"}
 }

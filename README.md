@@ -65,6 +65,18 @@ el mismo `CKPT_DIR` se carga y sigue en el episodio siguiente (si no hay checkpo
 Cada `EVAL_EVERY` episodios se evalúa 1 DQN contra heurísticos (`EVAL_JUGADORES`; el primero decide el mejor checkpoint) y se
 guardan `ep<N>.pth`, `best.pth` y `best_checkpoint.pt` (checkpoint completo del mejor momento).
 
+### Rivales del entrenamiento (v5_0, `rivales.py`)
+
+Con `RIVALES` definido, en cada partida aprenden `ASIENTOS_APRENDIZ` asientos elegidos al azar (solo ellos generan
+transiciones y cuentan como `global_step`) y cada asiento rival se sortea según los pesos de `RIVALES`:
+`heuristico` (el baseline), `actual` (la red que se entrena, greedy con `RIVAL_EPSILON` de ruido) o `checkpoint` (copia
+congelada de la red: una instantánea cada `POOL_EVERY` episodios, se conservan `POOL_MAX`, más los modelos externos de
+`RIVALES_CKPT`, p. ej. `['modelos/v5_1.pth']`). Sin checkpoints disponibles, `checkpoint` se sustituye por `heuristico`.
+`RIVALES_FIN` interpola los pesos linealmente durante el entrenamiento (de más heurísticos a más self-play). El pool se
+guarda en `<CKPT_DIR>/pool.pt` y se recupera al reanudar. `RIVALES=None` vuelve al self-play puro (todos aprenden).
+Con 1 aprendiz de 4 hay ~4 veces menos transiciones por partida que en self-play: a igualdad de episodios hay ~4 veces
+menos datos y pasos de gradiente (sube `NUM_EPISODIOS` o `ASIENTOS_APRENDIZ`).
+
 ## Web
 
 El oponente por defecto es `dqn_4.2`; se cambia con la variable de entorno `SKYJO_NIVEL` o por partida con
