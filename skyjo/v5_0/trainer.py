@@ -1,7 +1,8 @@
 """Entrenamiento de v5.0 (self-play o contra una mezcla de rivales, ver rivales.py): una sola red compartida de N jugadores
 y cada asiento aporta sus propias transiciones (observación relativa a su asiento). Recompensa:
   - intermedia: la del entorno (shaping por potencial, igual que 4.2)
-  - final: RECOMPENSA_FINAL * (media de puntos de los rivales - mis puntos)   [con 2 jugadores = 4.2]"""
+  - final: RECOMPENSA_FINAL * (media de puntos de los rivales - mis puntos)   [con 2 jugadores = 4.2]
+    + RECOMPENSA_VICTORIA * (victoria - 1/n)   (0 = desactivado)"""
 import os
 import random
 import time
@@ -17,7 +18,7 @@ from .buffer import ReplayBuffer
 from .env import SkyjoEnv, N_ACCIONES
 from .model import SkyjoDQN
 from .observacion import observacion_desde_vista, a_tensores
-from .imitacion import preentrenar_imitacion, paso_margen
+from .imitacion import preentrenar_imitacion, paso_margen, recompensas_finales
 from .rivales import PoolRivales, pesos_en
 
 def guardar_checkpoint(policy_net, target_net, optimizer, global_step, episodio, mejor_wr, epsilon, buffer, filepath="/content/drive/MyDrive/SkyjoBot/checkpoint.pt"):
@@ -219,8 +220,7 @@ def entrenar_skyjo(config):
 
             if done:
                 puntos = np.asarray(env.calcular_puntuaciones_finales(), dtype=np.float64)
-                media_riv = (puntos.sum() - puntos) / (n - 1)
-                finales = config['RECOMPENSA_FINAL'] * (media_riv - puntos)
+                finales = recompensas_finales(puntos, config)
                 hist_pts.append(puntos)
                 hist_apr.append((puntos[sorted(aprendices)].mean(),
                                  puntos[[s for s in range(n) if s not in aprendices]].mean() if rivales else float('nan')))

@@ -136,3 +136,13 @@ def test_entrenamiento_contra_mezcla_de_rivales_con_asiento_aleatorio(tmp_path):
         assert os.path.exists(cfg['SAVE_PATH']) and os.path.exists(cfg['CKPT_DIR'] + '/pool.pt')
         assert len(torch.load(cfg['CKPT_DIR'] + '/pool.pt')) <= 2
         v5.entrenar_skyjo(dict(cfg, NUM_EPISODIOS=6))        # reanuda desde el checkpoint (con el pool guardado)
+
+
+def test_recompensa_de_victoria_es_opcional_y_suma_cero_extra():
+    from skyjo.v5_0.imitacion import recompensas_finales
+    base = {'RECOMPENSA_FINAL': 1.5}
+    p = [10, 20, 30, 10]
+    r0 = recompensas_finales(p, base)
+    r1 = recompensas_finales(p, dict(base, RECOMPENSA_VICTORIA=20))
+    d = r1 - r0
+    assert abs(d.sum()) < 1e-9 and d[0] == d[3] > 0 > d[1] == d[2]

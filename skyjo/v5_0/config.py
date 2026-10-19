@@ -16,6 +16,7 @@ CONFIG = {
     'TARGET_UPDATE_FREQ': 1000,
     'WARMUP_STEPS': 2000,
     'RECOMPENSA_FINAL': 1.5,     # recompensa final = 1.5 * (media de puntos de los rivales - mis puntos)
+    'RECOMPENSA_VICTORIA': 0.0,  # extra por ganar: V * (victoria - 1/n); prueba 15-30 (los puntos suelen valer ~±20)
     'SAVE_EVERY': 1000,
     'LOG_EVERY': 500,
     'EVAL_EVERY': 1000,          # duelo vs heurísticos cada 2500 episodios
