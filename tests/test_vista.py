@@ -104,3 +104,17 @@ def test_consola_con_entradas_simuladas():
     assert ag(vista) == 1
     assert "Tú" in vista_a_texto(vista) and "Izquierda" in vista_a_texto(vista) and any("no válida" in s for s in salidas)
     assert AgenteConsola._parsear("p 2 3") == 2 + 1 * 4 + 2 and AgenteConsola._parsear("d 1 1") == 14
+
+
+def test_evaluar_con_detalle_y_graficos(tmp_path):
+    pytest = __import__('pytest')
+    from skyjo.graficos import histogramas, imprimir_distribuciones
+    ag = [AgenteHeuristico(), AgenteAleatorio(), AgenteHeuristico()]
+    res = evaluar(ag, n_partidas=12, detalle=True)
+    gs = res['_partidas']
+    assert len(gs) == 12 and all(len(g['puntos']) == 3 for g in gs)
+    assert '_partidas' in res and len([k for k in res if not k.startswith('_')]) == 3
+    imprimir_distribuciones(gs)
+    pytest.importorskip('matplotlib')
+    rutas = histogramas(gs, str(tmp_path))
+    assert len(rutas) == 5 and all(os.path.getsize(r) > 1000 for r in rutas)

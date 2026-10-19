@@ -2,6 +2,7 @@
   python evaluate.py torneo --version v4_2 --ckpt-dir checkpoints_4.2        # cada checkpoint vs heurístico
   python evaluate.py niveles -n 300                                           # niveles de dos en dos (niveles.json)
   python evaluate.py partida -n 240 heuristico aleatorio heuristico aleatorio # N asientos, rotando asientos
+  python evaluate.py partida -n 1000 --plots plots dqn_5.1 heuristico heuristico heuristico   # + histogramas (matplotlib)
 """
 import argparse
 import glob
@@ -12,6 +13,7 @@ import torch
 
 from skyjo.niveles import cargar_nivel, listar_niveles
 from skyjo.partida import evaluar, imprimir_evaluacion
+from skyjo.graficos import histogramas, imprimir_distribuciones
 
 
 def torneo(version, ckpt_dir, n, device):
@@ -46,8 +48,12 @@ def niveles(n, device, ruta):
             imprimir_evaluacion(evaluar([cargar_nivel(a, device, ruta), cargar_nivel(b, device, ruta)], n))
 
 
-def partida(n, device, asientos, ruta):
-    imprimir_evaluacion(evaluar([cargar_nivel(a, device, ruta) for a in asientos], n))
+def partida(n, device, asientos, ruta, plots=None):
+    res = evaluar([cargar_nivel(a, device, ruta) for a in asientos], n, detalle=plots is not None)
+    imprimir_evaluacion(res)
+    if plots is not None:
+        imprimir_distribuciones(res['_partidas'])
+        print("\nHistogramas:", *histogramas(res['_partidas'], plots), sep="\n  ")
 
 
 if __name__ == "__main__":
@@ -62,6 +68,8 @@ if __name__ == "__main__":
         s.add_argument('-n', type=int, default=300)
         s.add_argument('--niveles', default=None, help='ruta a un niveles.json alternativo')
         if nombre == 'partida':
+            s.add_argument('--plots', nargs='?', const='plots', default=None, metavar='CARPETA',
+                           help='guarda histogramas (PNG) y distribuciones; requiere matplotlib (por defecto ./plots)')
             s.add_argument('asientos', nargs='+', help='nombres de nivel, uno por asiento (2-8)')
     a = ap.parse_args()
     dev = "cuda" if torch.cuda.is_available() else "cpu"
@@ -70,4 +78,4 @@ if __name__ == "__main__":
     elif a.cmd == 'niveles':
         niveles(a.n, dev, a.niveles)
     else:
-        partida(a.n, dev, a.asientos, a.niveles)
+        partida(a.n, dev, a.asientos, a.niveles, a.plots)
