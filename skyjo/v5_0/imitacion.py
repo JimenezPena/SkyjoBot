@@ -59,12 +59,22 @@ def paso_margen(policy_net, fuente, optimizer, config, device):
     return loss.item()
     
     
-def _recompensas_finales(env, coef):
-    """finales[j] = coef * (media de puntos de los rivales - mis puntos). Igual que trainer.py."""
-    puntos = np.asarray(env.calcular_puntuaciones_finales(), dtype=np.float64)
-    n = env.num_jugadores
+def recompensas_finales(puntos, config):
+    """finales[j] = RECOMPENSA_FINAL * (media de puntos de los rivales - mis puntos)
+                    + RECOMPENSA_VICTORIA * (victoria_j - 1/n)     [victoria compartida en empates]."""
+    puntos = np.asarray(puntos, dtype=np.float64)
+    n = len(puntos)
     media_riv = (puntos.sum() - puntos) / (n - 1)
-    return coef * (media_riv - puntos)
+    finales = config['RECOMPENSA_FINAL'] * (media_riv - puntos)
+    v = config.get('RECOMPENSA_VICTORIA', 0.0)
+    if v:
+        gana = (puntos == puntos.min()).astype(np.float64)
+        finales = finales + v * (gana / gana.sum() - 1.0 / n)
+    return finales
+
+
+def _recompensas_finales(env, config):
+    return recompensas_finales(env.calcular_puntuaciones_finales(), config)
 
 
 def _partidas_heuristicas(env, replay_buffer, config):
@@ -99,7 +109,7 @@ def _partidas_heuristicas(env, replay_buffer, config):
             if not done:
                 pendientes[j] = (obs, accion, reward)
             else:
-                finales = _recompensas_finales(env, config['RECOMPENSA_FINAL'])
+                finales = _recompensas_finales(env, config)
                 replay_buffer.push(obs, accion, reward + finales[j], obs, True, vacia)
                 for s, (po, pa, pr) in pendientes.items():    # el resto de asientos cierra su partida
                     replay_buffer.push(po, pa, pr + finales[s], po, True, vacia)
