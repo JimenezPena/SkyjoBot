@@ -3,6 +3,7 @@
   "dqn_4.2":    {"tipo": "dqn", "version": "v4_2", "modelo": "modelos/v4_2.pth", "epsilon": 0.0}
   "heuristico": {"tipo": "heuristico"}      # baseline, sin pesos, válido con cualquier nº de jugadores
   "aleatorio":  {"tipo": "aleatorio"}
+  "llm_falso":  {"tipo": "llm", "cliente": "falso", "nivel_base": "dqn_5.1", "razonar": false, "oculto": true}   # ver skyjo/llm.py
 
 cargar_nivel(nombre) devuelve un agente de vista: agente(vista) -> acción.
 """
@@ -19,9 +20,12 @@ RAIZ = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 RUTA_NIVELES = os.path.join(RAIZ, 'niveles.json')
 
 
-def listar_niveles(ruta=None):
+def listar_niveles(ruta=None, ocultos=False):
+    """Niveles de niveles.json. Los marcados con "oculto": true (p. ej. pruebas del agente LLM) no salen en la web
+    ni en evaluate.py niveles, pero se pueden cargar por nombre."""
     with open(ruta or RUTA_NIVELES, encoding='utf-8') as f:
-        return json.load(f)
+        d = json.load(f)
+    return d if ocultos else {k: v for k, v in d.items() if not v.get('oculto')}
 
 
 def jugadores_soportados(cfg):
@@ -39,7 +43,7 @@ def niveles_para(n, ruta=None):
 
 
 def cargar_nivel(nombre, device="cpu", ruta=None):
-    niveles = listar_niveles(ruta)
+    niveles = listar_niveles(ruta, ocultos=True)
     if nombre not in niveles:
         raise KeyError(f"Nivel desconocido: '{nombre}'. Disponibles: {list(niveles)}")
     cfg = niveles[nombre]
@@ -58,6 +62,9 @@ def cargar_nivel(nombre, device="cpu", ruta=None):
             raise ValueError(f"El modelo '{path}' no es compatible con la versión "
                              f"'{cfg['version']}' (nivel '{nombre}').") from e
         base = modulo.AgenteDQN(model.eval(), device)
+    elif tipo == 'llm':
+        from .llm import crear_agente_llm
+        base = crear_agente_llm(cfg, device, ruta)
     else:
         raise ValueError(f"Tipo de nivel desconocido: {tipo}")
     base.nombre = nombre

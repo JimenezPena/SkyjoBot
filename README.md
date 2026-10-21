@@ -109,6 +109,22 @@ python -m skyjo.consola humano heuristico heuristico heuristico
 python evaluate.py partida heuristico dqn_4.2 -n 300
 ```
 
+### Agente LLM y partidas reproducibles
+
+`skyjo/llm.py` define `AgenteLLM`: construye un prompt con la vista pública y las acciones legales, pide una respuesta
+JSON (`{"accion": n}`) y la valida (reintenta y, si sigue siendo inválida, juega el heurístico y lo cuenta en `fallos`).
+El modelo es un *cliente* intercambiable `cliente(prompt, vista, razonar) -> str`; de momento solo existe el cliente
+falso `llm_falso` (nivel oculto de `niveles.json`), que responde con `dqn_5.1` en el mismo formato, para probar el
+circuito sin gastar cuota. `"razonar": true` (o `--razonar` en la consola) añade un campo `"motivo"` a la respuesta y
+lo muestra tras cada jugada; desactivado ahorra tokens de salida. `"registro": "ruta.jsonl"` guarda cada prompt/respuesta.
+
+Con `--semilla N` (consola) o `semilla=` en `jugar_partida`/`evaluar` el reparto es el mismo siempre, y por asiento
+no depende de los agentes (comparaciones pareadas).
+
+```bash
+python -m skyjo.consola humano llm_falso heuristico heuristico --razonar --semilla 3
+```
+
 Con `--plots [carpeta]` (requiere `matplotlib`, solo en `requirements-dev.txt`) se imprimen además las distribuciones
 (mediana, desviación, p90, brecha al ganador, % de cierres, % de cierres doblados) y se guardan cinco histogramas:
 puntos por jugador, puntos respecto al ganador, posición en el ranking, jugadas por partida y cierres.

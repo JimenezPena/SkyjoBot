@@ -120,6 +120,45 @@ def test_evaluar_con_detalle_y_graficos(tmp_path):
     assert len(rutas) == 5 and all(os.path.getsize(r) > 1000 for r in rutas)
 
 
+def test_semilla_reproduce_el_reparto_con_partidas_intercaladas():
+    from skyjo.v4_2 import SkyjoEnv
+    a, b = SkyjoEnv(4, semilla=7), SkyjoEnv(4, semilla=8)
+    a.reset(); b.reset()
+    ref = SkyjoEnv(4, semilla=7); ref.reset()
+    for _ in range(5):                          # consumir azar en otra partida no altera la primera
+        b.reset()
+    assert (a.tableros == ref.tableros).all() and a.mazo == ref.mazo
+    r1 = jugar_partida([AgenteHeuristico()] * 3, semilla=3)
+    r2 = jugar_partida([AgenteHeuristico()] * 3, semilla=3)
+    assert r1.puntos == r2.puntos and r1.pasos == r2.pasos
+
+
+def test_agente_llm_con_cliente_falso_y_razonamiento_opcional(tmp_path):
+    from skyjo.llm import AgenteLLM, ClienteDQN, parsear_respuesta
+    log = tmp_path / "llm.jsonl"
+    ag = AgenteLLM(ClienteDQN(AgenteHeuristico()), razonar=False, registro=str(log))
+    r = jugar_partida([ag, AgenteHeuristico()], semilla=1)
+    assert ag.fallos == 0 and ag.ultimo_motivo is None and r.ilegales[0] == 0
+    prompts = [__import__('json').loads(l) for l in log.read_text().splitlines()]
+    assert len(prompts) == ag.llamadas and '"motivo"' not in prompts[0]['prompt'] and prompts[0]['motivo'] is None
+    ag.razonar = True
+    jugar_partida([ag, AgenteHeuristico()], semilla=1, max_pasos=3)
+    assert ag.ultimo_motivo == "hago esta jugada porque sí"
+    # una respuesta basura se reintenta y luego juega el heurístico
+    malo = AgenteLLM(lambda p, v, r: "no sé", reintentos=1)
+    jugar_partida([malo, AgenteHeuristico()], semilla=1, max_pasos=4)
+    assert malo.fallos >= 1 and malo.llamadas == 2 * malo.fallos
+    assert parsear_respuesta('texto {"accion": 99}', None.__class__ and type('V', (), {'mask': [True] * 26})) == (None, None)
+
+
+def test_nivel_llm_falso_oculto_y_cargable():
+    from skyjo.niveles import listar_niveles, niveles_para
+    assert 'llm_falso' not in listar_niveles() and 'llm_falso' not in niveles_para(2)
+    ag = cargar_nivel('llm_falso')
+    r = jugar_partida([ag, AgenteHeuristico()], semilla=2)
+    assert ag.base.fallos == 0 if hasattr(ag, 'base') else ag.fallos == 0
+
+
 def test_match_completo_hasta_100_puntos():
     from skyjo.match import evaluar_matches, jugar_match
     ag = [AgenteHeuristico(), AgenteHeuristico()]

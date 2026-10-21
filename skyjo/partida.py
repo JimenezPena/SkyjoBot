@@ -33,13 +33,17 @@ class Resultado:
     penalizada: bool = False          # el cerrador no tenía la puntuación más baja y se le dobló
 
 
-def jugar_partida(agentes, motor=None, max_pasos=3000, on_paso=None):
-    """on_paso(asiento, agente, vista, accion) se llama antes de cada jugada (para mostrarla, registrar...)."""
+def jugar_partida(agentes, motor=None, max_pasos=3000, on_paso=None, semilla=None):
+    """Con semilla, el reparto (baraja y cartas iniciales) es reproducible y no depende de los agentes, y además
+    se fija el generador global (desempates de agentes con azar): misma semilla + mismos agentes = misma partida.
+    on_paso(asiento, agente, vista, accion) se llama antes de cada jugada (para mostrarla, registrar...)."""
     import numpy as np
     n = len(agentes)
     if not 2 <= n <= 8:
         raise ValueError("Skyjo se juega con 2 a 8 jugadores")
-    env = (motor or _motor())(num_jugadores=n)
+    if semilla is not None:
+        random.seed(semilla + 1)          # aleatoriedad de los agentes (desempates, epsilon...) y acciones ilegales
+    env = (motor or _motor())(num_jugadores=n, **({} if semilla is None else {'semilla': semilla}))
     env.reset()
     ilegales, pasos = [0] * n, 0
     while not env.game_over and pasos < max_pasos:
@@ -86,9 +90,10 @@ def evaluar(agentes, n_partidas=100, motor=None, max_pasos=3000, semilla=None, d
         rng.shuffle(perms)
     acc = {k: dict(partidas=0, victorias=0.0, puntos=0.0, posicion=0.0, columnas=0.0, ilegales=0) for k in nombres}
     truncadas, partidas = 0, []
+    semillas = [rng.randrange(2 ** 31) for _ in range(n_partidas)] if semilla is not None else [None] * n_partidas
     for g in range(n_partidas):
         p = perms[g % len(perms)] if perms else rng.sample(range(n), n)       # asiento s lo ocupa el agente p[s]
-        r = jugar_partida([agentes[i] for i in p], motor, max_pasos)
+        r = jugar_partida([agentes[i] for i in p], motor, max_pasos, semilla=semillas[g])
         truncadas += r.truncada
         if detalle:
             partidas.append(dict(
