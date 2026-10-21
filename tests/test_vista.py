@@ -118,3 +118,13 @@ def test_evaluar_con_detalle_y_graficos(tmp_path):
     pytest.importorskip('matplotlib')
     rutas = histogramas(gs, str(tmp_path))
     assert len(rutas) == 5 and all(os.path.getsize(r) > 1000 for r in rutas)
+
+
+def test_match_completo_hasta_100_puntos():
+    from skyjo.match import evaluar_matches, jugar_match
+    ag = [AgenteHeuristico(), AgenteHeuristico()]
+    m = jugar_match(ag)
+    assert max(m['total']) >= 100 and m['rondas'] >= 2 and m['ganadores']
+    assert all(m['total'][g] == min(m['total']) for g in m['ganadores'])
+    res = evaluar_matches(ag, n_matches=4, semilla=0)
+    assert abs(sum(v['winrate'] for k, v in res.items() if not k.startswith('_')) - 1) < 1e-9
