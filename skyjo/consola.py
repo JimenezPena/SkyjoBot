@@ -86,14 +86,24 @@ class AgenteConsola(Agente):
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument('asientos', nargs='+', help="'humano' o nombre de un nivel de niveles.json")
+    ap.add_argument('--razonar', action='store_true', help='los asientos LLM explican cada jugada (gasta tokens de salida)')
+    ap.add_argument('--semilla', type=int, default=None, help='mismo reparto en cada ejecución con la misma semilla')
     args = ap.parse_args(argv)
     from .niveles import cargar_nivel
     agentes = [AgenteConsola(f"humano{i + 1}") if s == 'humano' else cargar_nivel(s) for i, s in enumerate(args.asientos)]
 
+    if args.razonar:
+        for a in agentes:
+            if hasattr(getattr(a, 'base', a), 'razonar'):
+                getattr(a, 'base', a).razonar = True
+
     def on_paso(asiento, agente, vista, accion):
         if not isinstance(agente, AgenteConsola):
             print(f"[asiento {asiento + 1}: {agente.nombre}] {describir_accion(accion, vista)}")
-    r = jugar_partida(agentes, on_paso=on_paso)
+            motivo = getattr(getattr(agente, 'base', agente), 'ultimo_motivo', None)
+            if motivo:
+                print(f"    ↳ {motivo}")
+    r = jugar_partida(agentes, on_paso=on_paso, semilla=args.semilla)
     print("\nPuntos finales: " + ", ".join(f"{a.nombre}={p}" for a, p in zip(agentes, r.puntos)))
     print("Ganan: " + ", ".join(agentes[k].nombre for k in r.ganadores))
 

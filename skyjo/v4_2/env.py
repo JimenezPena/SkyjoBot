@@ -11,9 +11,15 @@ N_ACCIONES = 26        # 0-1 robar | 2-13 colocar en casilla | 14-25 descartar (
 SHAPING_COEF = 0.1     # escala de la recompensa intermedia basada en potencial
 
 class SkyjoEnv:
-    def __init__(self, num_jugadores=2):
+    def __init__(self, num_jugadores=2, semilla=None):
         self.num_jugadores = num_jugadores
+        # sin semilla se usa el generador global (random.seed sigue funcionando); con semilla, uno propio de la partida
+        self._rng = None if semilla is None else random.Random(semilla)
         self.reset()
+
+    @property
+    def rng(self):
+        return self._rng or random          # (el módulo `random` no se puede copiar con deepcopy, por eso no se guarda)
 
     def _crear_baraja(self):
         baraja = (
@@ -22,7 +28,7 @@ class SkyjoEnv:
             [0] * 15 +
             [v for v in range(1, 13) for _ in range(10)]
         )
-        random.shuffle(baraja)
+        self.rng.shuffle(baraja)
         return baraja
 
     def reset(self):
@@ -40,7 +46,7 @@ class SkyjoEnv:
                     self.tableros[j, f, c, 1] = 0
 
             posiciones = [(r, c) for r in range(3) for c in range(4)]
-            reveladas_inicio = random.sample(posiciones, 2)
+            reveladas_inicio = self.rng.sample(posiciones, 2)
             for r, c in reveladas_inicio:
                 self.tableros[j, r, c, 1] = 1
 
@@ -121,7 +127,7 @@ class SkyjoEnv:
         if len(self.mazo) == 0 and len(self.descartes) > 1:
             top_carta = self.descartes.pop()
             self.mazo = self.descartes[:]
-            random.shuffle(self.mazo)
+            self.rng.shuffle(self.mazo)
             self.descartes = [top_carta]
 
     def calcular_puntuaciones_finales(self):

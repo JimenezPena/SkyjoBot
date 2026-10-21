@@ -7,5 +7,6 @@
   "dqn_5.1.2j": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_1_2j.pth"},
   "dqn_5.2": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_2.pth"},
   "dqn_5.2+": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_2_vic.pth"},
-  "aleatorio": {"tipo": "aleatorio"}
+  "aleatorio": {"tipo": "aleatorio"},
+  "llm_falso": {"tipo": "llm", "cliente": "falso", "nivel_base": "dqn_5.1", "razonar": false, "oculto": true}
 }
