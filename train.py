@@ -61,7 +61,7 @@ def main():
         net.load_state_dict(torch.load(cfg['SAVE_PATH'], map_location=device))
         net.eval()
         if hasattr(m, 'evaluar_final'):                     # versiones multijugador (v5_0+)
-            meta['eval_vs_heuristicos'] = m.evaluar_final(net, device, args.eval_games, cfg.get('EVAL_JUGADORES', (4, 2)))
+            meta['eval_vs_heuristicos'] = m.evaluar_final(net, device, args.eval_games, cfg.get('EVAL_JUGADORES', (4, 2)), cfg.get('EVAL_SEMILLA'))
         else:
             r = m.duelo(m.agente_dqn(net, device), m.agente_heuristico, args.eval_games)
             m.imprimir_duelo("FINAL vs heurístico", r)

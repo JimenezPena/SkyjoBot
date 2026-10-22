@@ -36,13 +36,24 @@ class Resultado:
 def jugar_partida(agentes, motor=None, max_pasos=3000, on_paso=None, semilla=None):
     """Con semilla, el reparto (baraja y cartas iniciales) es reproducible y no depende de los agentes, y además
     se fija el generador global (desempates de agentes con azar): misma semilla + mismos agentes = misma partida.
+    El estado del generador global se restaura al terminar, para no alterar el azar de quien llama (p. ej. el
+    entrenamiento, que evalúa con semilla fija cada cierto número de episodios).
     on_paso(asiento, agente, vista, accion) se llama antes de cada jugada (para mostrarla, registrar...)."""
+    if semilla is None:
+        return _jugar_partida(agentes, motor, max_pasos, on_paso, None)
+    estado = random.getstate()
+    try:
+        random.seed(semilla + 1)          # aleatoriedad de los agentes (desempates, epsilon...) y acciones ilegales
+        return _jugar_partida(agentes, motor, max_pasos, on_paso, semilla)
+    finally:
+        random.setstate(estado)
+
+
+def _jugar_partida(agentes, motor, max_pasos, on_paso, semilla):
     import numpy as np
     n = len(agentes)
     if not 2 <= n <= 8:
         raise ValueError("Skyjo se juega con 2 a 8 jugadores")
-    if semilla is not None:
-        random.seed(semilla + 1)          # aleatoriedad de los agentes (desempates, epsilon...) y acciones ilegales
     env = (motor or _motor())(num_jugadores=n, **({} if semilla is None else {'semilla': semilla}))
     env.reset()
     ilegales, pasos = [0] * n, 0

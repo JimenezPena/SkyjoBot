@@ -218,3 +218,16 @@ def test_prompt_con_ayudas_motivo_primero_y_estrategia():
     assert '13: coloca la 6 en fila 3, col 4 → completa la columna 4 de 6s y la elimina: -17 puntos' in p
     assert ESTRATEGIA in p and p.rstrip().endswith('{"motivo": "<razonamiento breve>", "accion": <número>}')
     assert construir_prompt(v, razonar=True, motivo_primero=False).rstrip().endswith('{"accion": <número>, "motivo": "<una frase>"}')
+
+
+def test_evaluar_con_semilla_es_reproducible_y_no_toca_el_azar_global():
+    ag = [AgenteHeuristico(), AgenteHeuristico(), AgenteAleatorio()]
+    random.seed(99)
+    antes = random.getstate()
+    r1 = evaluar(ag, n_partidas=6, semilla=5)
+    assert random.getstate() == antes                 # el azar de quien llama (p. ej. el entrenamiento) no cambia
+    r2 = evaluar(ag, n_partidas=6, semilla=5)
+    k = [x for x in r1 if not x.startswith('_')]
+    assert [r1[x]['puntos'] for x in k] == [r2[x]['puntos'] for x in k]
+    r3 = evaluar(ag, n_partidas=6, semilla=6)
+    assert [r1[x]['puntos'] for x in k] != [r3[x]['puntos'] for x in k]

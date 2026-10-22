@@ -19,7 +19,7 @@ from skyjo.partida import evaluar, imprimir_evaluacion
 from skyjo.graficos import histogramas, imprimir_distribuciones
 
 
-def torneo(version, ckpt_dir, n, device, jugadores=2):
+def torneo(version, ckpt_dir, n, device, jugadores=2, semilla=0):
     """Cada checkpoint (ep*.pth y best.pth) como agente 0 contra heurísticos en `jugadores` asientos."""
     from skyjo.heuristico import AgenteAleatorio, AgenteHeuristico
     from skyjo.partida import _nombres
@@ -32,7 +32,7 @@ def torneo(version, ckpt_dir, n, device, jugadores=2):
 
     def duelo(etiqueta, agente, rivales):
         ags = [agente] + rivales
-        r = evaluar(ags, n)
+        r = evaluar(ags, n, semilla=semilla)
         v = r[_nombres(ags)[0]]
         print(f"{etiqueta:<28}win {100 * v['winrate']:5.1f}%  puntos {v['puntos']:5.1f}  pos {v['posicion']:.2f}  "
               f"cols {v['columnas']:.2f}  ilegales {v['ilegales']}")
@@ -52,16 +52,16 @@ def torneo(version, ckpt_dir, n, device, jugadores=2):
                 duelo(f"best vs {os.path.basename(p)}", cargar(best), [cargar(p)] + heur()[1:])
 
 
-def niveles(n, device, ruta):
+def niveles(n, device, ruta, semilla=None):
     nombres = list(listar_niveles(ruta))
     for i, a in enumerate(nombres):
         for b in nombres[i + 1:]:
             print(f"\n== {a} vs {b} ==")
-            imprimir_evaluacion(evaluar([cargar_nivel(a, device, ruta), cargar_nivel(b, device, ruta)], n))
+            imprimir_evaluacion(evaluar([cargar_nivel(a, device, ruta), cargar_nivel(b, device, ruta)], n, semilla=semilla))
 
 
-def partida(n, device, asientos, ruta, plots=None):
-    res = evaluar([cargar_nivel(a, device, ruta) for a in asientos], n, detalle=plots is not None)
+def partida(n, device, asientos, ruta, plots=None, semilla=None):
+    res = evaluar([cargar_nivel(a, device, ruta) for a in asientos], n, detalle=plots is not None, semilla=semilla)
     imprimir_evaluacion(res)
     if plots is not None:
         imprimir_distribuciones(res['_partidas'])
@@ -79,10 +79,13 @@ if __name__ == "__main__":
     t.add_argument('--version', required=True)
     t.add_argument('--ckpt-dir', required=True)
     t.add_argument('-n', type=int, default=500)
+    t.add_argument('--semilla', type=int, default=0, help='mismos repartos para todos los checkpoints (comparación pareada)')
     t.add_argument('--jugadores', type=int, default=2, help='asientos de cada partida (rivales: heurísticos)')
     for nombre in ('niveles', 'partida', 'match'):
         s = sub.add_parser(nombre)
         s.add_argument('-n', type=int, default=300)
+        if nombre != 'match':
+            s.add_argument('--semilla', type=int, default=None, help='mismos repartos en cada ejecución (comparación pareada)')
         s.add_argument('--niveles', default=None, help='ruta a un niveles.json alternativo')
         if nombre == 'match':
             s.add_argument('--limite', type=int, default=100, help='el match acaba al llegar alguien a estos puntos')
@@ -94,10 +97,10 @@ if __name__ == "__main__":
     a = ap.parse_args()
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     if a.cmd == 'torneo':
-        torneo(a.version, a.ckpt_dir, a.n, dev, a.jugadores)
+        torneo(a.version, a.ckpt_dir, a.n, dev, a.jugadores, a.semilla)
     elif a.cmd == 'niveles':
-        niveles(a.n, dev, a.niveles)
+        niveles(a.n, dev, a.niveles, a.semilla)
     elif a.cmd == 'match':
         match(a.n, dev, a.asientos, a.niveles, a.limite)
     else:
-        partida(a.n, dev, a.asientos, a.niveles, a.plots)
+        partida(a.n, dev, a.asientos, a.niveles, a.plots, a.semilla)

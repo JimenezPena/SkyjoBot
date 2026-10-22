@@ -21,6 +21,7 @@ CONFIG = {
     'LOG_EVERY': 500,
     'EVAL_EVERY': 1000,          # duelo vs heurísticos cada 2500 episodios
     'EVAL_GAMES': 300,           # partidas por evaluación (>= 1000 para conclusiones fiables)
+    'EVAL_SEMILLA': 12345,       # mismos repartos en todas las evaluaciones (comparación pareada entre checkpoints); None = azar
     'EVAL_JUGADORES': [4, 2],    # nº de asientos a evaluar; el primero decide el "mejor checkpoint"
     'CKPT_DIR': 'checkpoints_5.1',
     'SAVE_PATH': 'skyjo_dqn_model_5.1.pth',
