@@ -5,6 +5,6 @@ __pycache__/
 .env
 .DS_Store
 .ipynb_checkpoints/
-checkpoints*/
+CarpetaOculta/
 .pytest_cache/
 plot*/

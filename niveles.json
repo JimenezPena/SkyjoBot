@@ -3,6 +3,7 @@
   "dqn_4.2": {"tipo": "dqn", "version": "v4_2", "modelo": "modelos/v4_2.pth"},
   "dqn_5.1": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_1.pth"},
   "aleatorio": {"tipo": "aleatorio"},
+  "llm_gemini": {"tipo": "llm", "cliente": "gemini", "modelo": "gemini-2.5-flash", "pensar": 0, "rpm": 8, "razonar": false, "oculto": true, "registro": "llm_gemini.jsonl"},
   "llm_falso": {"tipo": "llm", "cliente": "falso", "nivel_base": "dqn_5.1", "razonar": true, "oculto": false},
 
   "dqn_5.0": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_0.pth", "oculto": true},
