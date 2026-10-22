@@ -16,6 +16,7 @@ import random
 
 from flask import Flask, render_template, jsonify, request, session
 from skyjo.v4_2 import SkyjoEnv            # motor de juego (las reglas son iguales en todas las versiones)
+from skyjo.consola import describir_accion
 from skyjo.niveles import cargar_nivel, listar_niveles, niveles_para
 from skyjo.vista import construir_vista
 
@@ -33,6 +34,16 @@ def get_agente(nivel):
     if nivel not in _agentes:
         _agentes[nivel] = cargar_nivel(nivel, device=device)
     return _agentes[nivel]
+
+
+def decidir_bot(nivel, vista):
+    """Acción del bot. Si es un agente LLM con razonar activado, imprime en la terminal su jugada y su motivo."""
+    agente = get_agente(nivel)
+    accion = int(agente(vista))
+    motivo = getattr(getattr(agente, 'base', agente), 'ultimo_motivo', None)
+    if motivo:
+        print(f"[{nivel}] {describir_accion(accion, vista)}\n    ↳ {motivo}", flush=True)
+    return accion
 
 # ---- Partidas en memoria: una por visitante ----
 games = {}                 # id -> {"env": SkyjoEnv, "nivel": str, "t": último uso}
@@ -125,7 +136,7 @@ def ia_step():
 
     vista = construir_vista(env, 1)                  # el agente solo ve la vista pública
     mask = vista.mask
-    accion_ia = int(get_agente(game["nivel"])(vista))
+    accion_ia = decidir_bot(game["nivel"], vista)
     if not (0 <= accion_ia < len(mask)) or not mask[accion_ia]:      # red de seguridad: nunca bloquear la partida
         accion_ia = int(np.random.choice(np.flatnonzero(mask)))
     env.step(accion_ia)
@@ -194,7 +205,7 @@ def bot_step4():
         return jsonify({"error": "Es tu turno"}), 400
     vista = construir_vista(env, env.turno_actual)
     mask = vista.mask
-    accion = int(get_agente(game["niveles"][env.turno_actual - 1])(vista))
+    accion = decidir_bot(game["niveles"][env.turno_actual - 1], vista)
     if not (0 <= accion < len(mask)) or not mask[accion]:
         accion = int(np.random.choice(np.flatnonzero(mask)))
     env.step(accion)

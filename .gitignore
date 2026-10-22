@@ -8,3 +8,4 @@ __pycache__/
 CarpetaOculta/
 .pytest_cache/
 plot*/
+llm_gemini.jsonl
