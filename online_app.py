@@ -88,6 +88,11 @@ def get_state_response(env):
         "action_mask": env.get_action_mask(env.turno_actual).tolist()
     }
 
+def respuesta2(game):
+    r = get_state_response(game["env"])
+    r["niveles"] = [game["nivel"]]          # nivel del bot (lo muestra index.html)
+    return r
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -99,18 +104,20 @@ def niveles():
 @app.route('/api/reset', methods=['POST'])
 def reset_game():
     game = get_game()
-    nivel = (request.get_json(silent=True) or {}).get('nivel')
+    datos = request.get_json(silent=True) or {}
+    nivel = datos.get('nivel') or (datos.get('niveles') or [None])[0]      # index.html envía {"niveles": ["..."]}
     if nivel is not None:
-        if nivel not in listar_niveles():
+        if nivel not in niveles_para(2):
             return jsonify({"error": "Nivel desconocido"}), 400
         game["nivel"] = nivel
     env = game["env"]
     env.reset()
-    return jsonify(get_state_response(env))
+    return jsonify(respuesta2(game))
 
 @app.route('/api/step', methods=['POST'])
 def step_game():
-    env = get_env()
+    game = get_game()
+    env = game["env"]
     accion = request.json.get('action')
 
     if env.game_over:
@@ -123,7 +130,7 @@ def step_game():
         return jsonify({"error": "Acción no permitida"}), 400
 
     env.step(accion)
-    return jsonify(get_state_response(env))
+    return jsonify(respuesta2(game))
 
 @app.route('/api/ia_step', methods=['POST'])
 def ia_step():
@@ -140,7 +147,7 @@ def ia_step():
     if not (0 <= accion_ia < len(mask)) or not mask[accion_ia]:      # red de seguridad: nunca bloquear la partida
         accion_ia = int(np.random.choice(np.flatnonzero(mask)))
     env.step(accion_ia)
-    return jsonify(get_state_response(env))
+    return jsonify(respuesta2(game))
 
 # ---- Modo 4 jugadores: tú (asiento 0) contra tres bots (asientos 1, 2 y 3, en el orden de turno) ----
 # Los bots solo ven la vista pública. Por defecto son heurísticos (SKYJO_NIVEL_4); los DQN actuales son de 2 jugadores.

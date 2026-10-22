@@ -141,3 +141,13 @@ if __name__ == "__main__":
     for k, f in list(globals().items()):
         if k.startswith("test_"):
             f(); print("ok", k)
+
+
+def test_el_nivel_elegido_en_el_desplegable_se_aplica_en_1v1():
+    c = online_app.app.test_client()
+    for nivel in ("aleatorio", "heuristico"):
+        s = c.post('/api/reset', json={"niveles": [nivel]}).get_json()     # así lo envía index.html
+        assert s["niveles"] == [nivel]
+    assert c.post('/api/reset', json={"niveles": ["no_existe"]}).status_code == 400
+    s = c.post('/api/step', json={"action": 1}).get_json()
+    assert s["niveles"] == ["heuristico"]
