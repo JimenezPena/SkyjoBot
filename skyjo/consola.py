@@ -106,6 +106,11 @@ def main(argv=None):
     r = jugar_partida(agentes, on_paso=on_paso, semilla=args.semilla)
     print("\nPuntos finales: " + ", ".join(f"{a.nombre}={p}" for a, p in zip(agentes, r.puntos)))
     print("Ganan: " + ", ".join(agentes[k].nombre for k in r.ganadores))
+    for a in agentes:
+        b = getattr(a, 'base', a)
+        if hasattr(b, 'fallos'):
+            uso = getattr(getattr(b, 'cliente', None), 'uso', None)
+            print(f"{a.nombre}: {b.llamadas} llamadas, {b.fallos} respuestas inválidas" + (f" ({uso})" if uso else ""))
 
 
 if __name__ == "__main__":

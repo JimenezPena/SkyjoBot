@@ -153,7 +153,9 @@ def test_agente_llm_con_cliente_falso_y_razonamiento_opcional(tmp_path):
 
 def test_nivel_llm_falso_oculto_y_cargable():
     from skyjo.niveles import listar_niveles, niveles_para
-    assert 'llm_falso' not in listar_niveles() and 'llm_falso' not in niveles_para(2)
+    # el nivel de Gemini gasta cuota y clave: no debe salir en la web (llm_falso sí puede, es gratis)
+    assert 'llm_gemini' not in listar_niveles() and 'llm_gemini' not in niveles_para(2)
+    assert 'llm_gemini' in listar_niveles(ocultos=True)
     ag = cargar_nivel('llm_falso')
     r = jugar_partida([ag, AgenteHeuristico()], semilla=2)
     assert ag.base.fallos == 0 if hasattr(ag, 'base') else ag.fallos == 0
@@ -167,3 +169,37 @@ def test_match_completo_hasta_100_puntos():
     assert all(m['total'][g] == min(m['total']) for g in m['ganadores'])
     res = evaluar_matches(ag, n_matches=4, semilla=0)
     assert abs(sum(v['winrate'] for k, v in res.items() if not k.startswith('_')) - 1) < 1e-9
+
+
+def test_cliente_gemini_sin_red():
+    import json
+    import pytest
+    from skyjo.llm import AgenteLLM, ClienteGemini, CuotaAgotada
+    esperas, respuestas = [], iter([
+        (429, {"error": {"details": [{"retryDelay": "7s"}]}}),
+        (503, {}),
+        (200, {"candidates": [{"content": {"parts": [{"text": '{"accion": 1}'}]}}],
+               "usageMetadata": {"promptTokenCount": 100, "candidatesTokenCount": 5, "thoughtsTokenCount": 3}})])
+    cuerpos = []
+
+    def post(url, cuerpo):
+        cuerpos.append(cuerpo)
+        return next(respuestas)
+    c = ClienteGemini(_post=post, _dormir=esperas.append, rpm=0)
+    assert json.loads(c("hola")) == {"accion": 1}
+    assert esperas == [7.0, 4.0] and (c.tokens_entrada, c.tokens_salida, c.llamadas) == (100, 8, 3)
+    g = cuerpos[0]["generationConfig"]
+    assert g["responseMimeType"] == "application/json" and g["thinkingConfig"]["thinkingBudget"] == 0
+    # cuota diaria: parar, no reintentar
+    d = ClienteGemini(_post=lambda u, b: (429, {"error": {"message": "RequestsPerDay"}}), _dormir=esperas.append, rpm=0)
+    with pytest.raises(CuotaAgotada):
+        d("hola")
+    # ritmo: dos llamadas seguidas esperan 60/rpm
+    t, dormidas = [0.0], []
+    r = ClienteGemini(_post=lambda u, b: (200, {}), rpm=10, _dormir=dormidas.append, _reloj=lambda: t[0])
+    r("a"); r("b")
+    assert dormidas == [6.0]
+    # el agente tolera respuestas vacías (sin 'candidates')
+    ag = AgenteLLM(r, reintentos=0)
+    jugar_partida([ag, AgenteHeuristico()], semilla=1, max_pasos=3)
+    assert ag.fallos >= 1

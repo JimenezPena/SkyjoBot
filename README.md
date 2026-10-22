@@ -118,6 +118,18 @@ falso `llm_falso` (nivel oculto de `niveles.json`), que responde con `dqn_5.1` e
 circuito sin gastar cuota. `"razonar": true` (o `--razonar` en la consola) añade un campo `"motivo"` a la respuesta y
 lo muestra tras cada jugada; desactivado ahorra tokens de salida. `"registro": "ruta.jsonl"` guarda cada prompt/respuesta.
 
+**Gemini.** `llm_gemini` (nivel oculto de `niveles.json`) usa `gemini-2.5-flash` por la API REST de Google, sin
+dependencias nuevas. La clave va en la variable de entorno `GEMINI_API_KEY` (nunca en el repositorio). Parámetros del
+nivel: `pensar` (tokens de pensamiento; 0 = sin pensar, más barato; -1 = dinámico), `rpm` (llamadas por minuto, para
+respetar el límite gratuito), `razonar`, `registro`. Reintenta 429/5xx esperando lo que indica la API, y si la cuota
+diaria se agota lanza `CuotaAgotada` y la partida se detiene. La consola imprime al final llamadas, respuestas
+inválidas y tokens usados. Mantenlo oculto en la web pública: cualquier visitante gastaría tu cuota.
+
+```bash
+export GEMINI_API_KEY=...
+python -m skyjo.consola humano llm_gemini heuristico heuristico --razonar --semilla 3
+```
+
 Con `--semilla N` (consola) o `semilla=` en `jugar_partida`/`evaluar` el reparto es el mismo siempre, y por asiento
 no depende de los agentes (comparaciones pareadas).
 
