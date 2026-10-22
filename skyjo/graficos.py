@@ -89,17 +89,20 @@ def histogramas(partidas, carpeta):
         ax.legend(frameon=False)
 
     todos = [x for d in ag.values() for x in d['puntos']]
-    bins = np.arange(min(todos) - 2, max(todos) + 6, 4)
     fig, ax = plt.subplots(figsize=(8, 4.2))
-    hist(ax, 'puntos', bins)
+    bins_enteros = np.arange(-10, 111)
+    hist(ax, 'puntos', bins=bins_enteros)
     for k, d in ag.items():
         ax.axvline(st.mean(d['puntos']), color=col[k], linestyle=':', linewidth=1)
     estilo(ax, 'Puntos finales por jugador (línea punteada: media)', 'puntos (menos es mejor)')
+    ax.set_xlim(-10, 110)
     guardar(fig, '1_puntos.png')
 
     fig, ax = plt.subplots(figsize=(8, 4.2))
-    hist(ax, 'brecha', np.arange(0, max(x for d in ag.values() for x in d['brecha']) + 6, 4))
+    bins_enteros = np.arange(0, 81)
+    hist(ax, 'brecha', bins=bins_enteros)
     estilo(ax, 'Puntos respecto al ganador de cada partida (0 = ganó)', 'puntos propios − puntos del ganador')
+    ax.set_xlim(0, 80)
     guardar(fig, '2_brecha_al_ganador.png')
 
     fig, ax = plt.subplots(figsize=(8, 4.2))
@@ -111,11 +114,13 @@ def histogramas(partidas, carpeta):
     estilo(ax, 'Posición final en el ranking (empates comparten posición)', 'posición (1 = mejor)')
     guardar(fig, '3_posicion.png')
 
-    pasos = [g['pasos'] for g in partidas]
+    pasos = [g['pasos']/2/n for g in partidas]
     fig, ax = plt.subplots(figsize=(8, 4.2))
-    ax.hist(pasos, bins=30, weights=np.full(len(pasos), 100 / len(pasos)), color=COLORES[0], alpha=.85)
+    bins_enteros = np.arange(10, 31)
+    ax.hist(pasos, bins=bins_enteros, weights=np.full(len(pasos), 100 / len(pasos)), color=COLORES[0], alpha=.85)
+    ax.set_xlim(10, 30)
     ax.axvline(st.median(pasos), color='#444', linestyle=':')
-    estilo(ax, f'Jugadas por partida (todos los jugadores; mediana {st.median(pasos):.0f})', 'jugadas (pasos)')
+    estilo(ax, f'Jugadas por partida (por jugador y partida; mediana {st.median(pasos):.0f})', 'jugadas (pasos)')
     guardar(fig, '4_jugadas.png')
 
     fig, ax = plt.subplots(figsize=(8, 4.2))
