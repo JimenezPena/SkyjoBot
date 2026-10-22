@@ -250,3 +250,35 @@ def test_gemini_reintenta_timeouts_y_no_cuelga_la_partida(monkeypatch):
     seq = iter([(599, {}), (200, {"candidates": [{"content": {"parts": [{"text": '{"accion": 1}'}]}}]})])
     c2 = ClienteGemini(_post=lambda u, b: next(seq), rpm=0, _dormir=lambda s: None)
     assert '"accion": 1' in c2("hola")
+
+
+def test_gemini_se_adapta_a_modelos_que_rechazan_el_pensamiento_y_a_503_largos(monkeypatch):
+    import pytest
+    import json
+    from skyjo.llm import ClienteGemini, crear_agente_llm
+    cuerpos = []
+    bien = (200, {"candidates": [{"content": {"parts": [{"text": '{"accion": 1}'}]}}]})
+
+    def post(url, cuerpo):
+        cuerpos.append(cuerpo["generationConfig"])
+        return (400, {"error": {"message": "Request contains an invalid argument."}}) if "thinkingConfig" in cuerpo["generationConfig"] else bien
+    c = ClienteGemini(_post=post, rpm=0, _dormir=lambda s: None)
+    assert json.loads(c("a")) == {"accion": 1}
+    assert "thinkingConfig" in cuerpos[0] and "thinkingConfig" not in cuerpos[1]
+    c("b")
+    assert "thinkingConfig" not in cuerpos[-1] and len(cuerpos) == 3          # recuerda que no debe enviarlo
+    # niveles de pensamiento (Gemini 3) y "sin ajuste"
+    g = ClienteGemini(_post=lambda u, b: (cuerpos.append(b["generationConfig"]) or bien), rpm=0, nivel_pensamiento="low")
+    g("x"); assert cuerpos[-1]["thinkingConfig"] == {"thinkingLevel": "low"}
+    n = ClienteGemini(_post=lambda u, b: (cuerpos.append(b["generationConfig"]) or bien), rpm=0, pensar=None)
+    n("x"); assert "thinkingConfig" not in cuerpos[-1]
+    # 503 sostenidos: la espera crece hasta espera_max y se admiten más reintentos
+    esperas = []
+    k = ClienteGemini(_post=lambda u, b: (503, {}), rpm=0, reintentos_http=6, espera_max=10, _dormir=esperas.append)
+    with pytest.raises(RuntimeError):
+        k("x")
+    assert esperas == [2.0, 4.0, 8.0, 10.0, 10.0, 10.0]
+    monkeypatch.setenv("GEMINI_API_KEY", "x")
+    ag = crear_agente_llm(dict(cliente="gemini", modelo="m", pensar=None, reintentos_http=8, espera_max=120,
+                               nivel_pensamiento="minimal"))
+    assert ag.cliente.reintentos_http == 8 and ag.cliente.espera_max == 120 and ag.cliente.pensar is None

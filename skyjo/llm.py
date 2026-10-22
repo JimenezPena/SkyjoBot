@@ -133,13 +133,22 @@ class ClienteGemini:
     pensar: presupuesto de tokens de "pensamiento" de gemini-2.5-flash (0 = sin pensar, lo más barato y rápido;
             -1 = dinámico; N = hasta N tokens). Los tokens de pensamiento cuentan como salida y dentro del tope
             maxOutputTokens de la API, por eso se suman a max_salida (si no, la respuesta saldría cortada/vacía).
+            None = no enviar ajuste de pensamiento (el que traiga el modelo por defecto).
+    nivel_pensamiento: "minimal" | "low" | "medium" | "high" (familia Gemini 3, que usa niveles en lugar de presupuesto);
+            si se indica, sustituye a `pensar`.
+    Si la API responde 400 y se había enviado un ajuste de pensamiento, se reintenta sin él (y se avisa): algunos
+    modelos nuevos no aceptan thinkingBudget=0 ni todos los ajustes.
     rpm:    llamadas máximas por minuto (se espera entre llamadas para no chocar con el límite gratuito).
+    reintentos_http / espera_max: reintentos ante 429/5xx/timeouts y espera máxima (s) entre ellos; para 503
+            sostenidos ("high demand") sube a, p. ej., 8 y 120.
     """
     URL = "https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent"
 
     def __init__(self, modelo="gemini-2.5-flash", api_key=None, temperatura=0.0, pensar=0, rpm=8,
-                 max_salida=256, reintentos_http=5, _post=None, _dormir=time.sleep, _reloj=time.monotonic):
+                 max_salida=256, reintentos_http=5, espera_max=60.0, nivel_pensamiento=None,
+                 _post=None, _dormir=time.sleep, _reloj=time.monotonic):
         self.modelo, self.temperatura, self.pensar, self.max_salida = modelo, temperatura, pensar, max_salida
+        self.nivel_pensamiento, self.espera_max, self._sin_pensamiento = nivel_pensamiento, espera_max, False
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
         if not self.api_key and _post is None:
             raise RuntimeError("Falta la clave: define la variable de entorno GEMINI_API_KEY")
@@ -182,13 +191,23 @@ class ClienteGemini:
                 return float(m.group(1))
         return None
 
+    def _cuerpo(self, prompt):
+        gc = {"temperature": self.temperatura, "responseMimeType": "application/json"}
+        extra = 0                                            # los tokens de pensamiento cuentan dentro del tope de salida
+        if not self._sin_pensamiento:
+            if self.nivel_pensamiento:
+                gc["thinkingConfig"] = {"thinkingLevel": self.nivel_pensamiento}
+                extra = 2048
+            elif self.pensar is not None:
+                gc["thinkingConfig"] = {"thinkingBudget": self.pensar}
+                extra = self.pensar if self.pensar > 0 else 8192 if self.pensar < 0 else 0
+        gc["maxOutputTokens"] = self.max_salida + extra
+        return {"contents": [{"role": "user", "parts": [{"text": prompt}]}], "generationConfig": gc}
+
     def __call__(self, prompt, vista=None, razonar=False):
-        cuerpo = {"contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                  "generationConfig": {"temperature": self.temperatura, "maxOutputTokens": self.max_salida + (self.pensar if self.pensar > 0 else 8192 if self.pensar < 0 else 0),
-                                       "responseMimeType": "application/json",
-                                       "thinkingConfig": {"thinkingBudget": self.pensar}}}
         url = self.URL.format(modelo=self.modelo)
         for intento in range(self.reintentos_http + 1):
+            cuerpo = self._cuerpo(prompt)
             self._espera_por_ritmo()
             self.llamadas += 1
             codigo, resp = self._post(url, cuerpo)
@@ -201,10 +220,14 @@ class ClienteGemini:
                 except (KeyError, IndexError, TypeError):
                     return ""                                   # sin texto (bloqueo, corte...): cuenta como respuesta inválida
             detalle = json.dumps(resp.get("error", {}))[:400]
+            if codigo == 400 and "thinkingConfig" in cuerpo["generationConfig"]:
+                self._sin_pensamiento = True            # el modelo rechaza el ajuste de pensamiento: probar sin él
+                print(f"[Gemini] 400 con ajuste de pensamiento ({detalle}); se reintenta sin él", flush=True)
+                continue
             if codigo == 429 and "PerDay" in detalle:
                 raise CuotaAgotada(f"Cuota diaria agotada ({self.modelo}): {detalle}")
             if codigo in (429, 500, 502, 503, 504, 599) and intento < self.reintentos_http:
-                self._dormir(self._retraso(resp) or min(2.0 ** (intento + 1), 60.0))
+                self._dormir(self._retraso(resp) or min(2.0 ** (intento + 1), self.espera_max))
                 continue
             if codigo == 429:
                 raise CuotaAgotada(f"Límite de uso ({self.modelo}) tras {intento + 1} intentos: {detalle}")
@@ -251,7 +274,7 @@ def crear_agente_llm(cfg, device="cpu", ruta=None):
         from .niveles import cargar_nivel
         cliente = ClienteDQN(cargar_nivel(cfg["nivel_base"], device, ruta))
     elif clase == "gemini":
-        cliente = ClienteGemini(**{k: cfg[k] for k in ("modelo", "temperatura", "pensar", "rpm", "max_salida") if k in cfg})
+        cliente = ClienteGemini(**{k: cfg[k] for k in ("modelo", "temperatura", "pensar", "rpm", "max_salida", "reintentos_http", "espera_max", "nivel_pensamiento") if k in cfg})
     else:
         raise ValueError(f"Cliente LLM desconocido: '{clase}' (disponibles: 'falso', 'gemini')")
     return AgenteLLM(cliente, razonar=bool(cfg.get("razonar", False)), registro=cfg.get("registro"),
