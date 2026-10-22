@@ -157,7 +157,7 @@ def entrenar_skyjo(config):
         
         print(f"Imitación completada (acc {acc:.3f}). "
               f"DQN desde epsilon={epsilon:.2f}, buffer={len(buffer)}")
-        res = evaluar_vs_heuristicos(policy_net, device, n, config['EVAL_GAMES'])
+        res = evaluar_vs_heuristicos(policy_net, device, n, config['EVAL_GAMES'], semilla=config.get('EVAL_SEMILLA'))
         imprimir_vs_heuristicos(f"[Tras imitación: 1 DQN vs {n - 1} heurísticos", res)          
     
         # calibrar la escala de Q con TD sobre las demos (política protegida por el margen)
@@ -177,7 +177,7 @@ def entrenar_skyjo(config):
         
         print(f"Recalibración de la escala Q completada (acc {acc:.3f}). "
               f"DQN desde epsilon={epsilon:.2f}, buffer={len(buffer)}")
-        res = evaluar_vs_heuristicos(policy_net, device, n, config['EVAL_GAMES'])
+        res = evaluar_vs_heuristicos(policy_net, device, n, config['EVAL_GAMES'], semilla=config.get('EVAL_SEMILLA'))
         imprimir_vs_heuristicos(f"[Tras imitación: 1 DQN vs {n - 1} heurísticos", res)              
         if pool is not None:
             pool.anadir_instantanea(policy_net, 0)       # la red imitadora es el primer 'checkpoint antiguo'
@@ -266,7 +266,7 @@ def entrenar_skyjo(config):
 
         if episodio % config['EVAL_EVERY'] == 0:
             for k, nj in enumerate(eval_n):
-                res = evaluar_vs_heuristicos(policy_net, device, nj, config['EVAL_GAMES'])
+                res = evaluar_vs_heuristicos(policy_net, device, nj, config['EVAL_GAMES'], semilla=config.get('EVAL_SEMILLA'))
                 imprimir_vs_heuristicos(f"[ep {episodio}] 1 DQN vs {nj - 1} heurísticos", res)
                 if nj == n:
                     wr = res['_dqn']['winrate']

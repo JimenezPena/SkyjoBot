@@ -18,11 +18,11 @@ def imprimir_vs_heuristicos(titulo, res):
     imprimir_evaluacion(res)
 
 
-def evaluar_final(net, device, n_partidas, n_jugadores=(4, 2)):
+def evaluar_final(net, device, n_partidas, n_jugadores=(4, 2), semilla=None):
     """Evaluación final para train.py: devuelve {nº de asientos: métricas del DQN}."""
     out = {}
     for n in n_jugadores:
-        r = evaluar_vs_heuristicos(net, device, n, n_partidas)
+        r = evaluar_vs_heuristicos(net, device, n, n_partidas, semilla=semilla)
         imprimir_vs_heuristicos(f"FINAL {n} jugadores (1 DQN vs {n - 1} heurísticos)", r)
         out[str(n)] = r['_dqn']
     return out

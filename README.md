@@ -132,6 +132,12 @@ export GEMINI_API_KEY=...
 python -m skyjo.consola humano llm_gemini heuristico heuristico --razonar --semilla 3
 ```
 
+**Evaluación pareada.** Con `semilla`, las partidas de `evaluar` usan los mismos repartos (y rotaciones de asiento) para
+cualquier agente, así que la diferencia entre dos modelos tiene mucho menos ruido que con repartos distintos.
+El entrenamiento de v5_0 evalúa con `EVAL_SEMILLA` (por defecto 12345; `None` = azar) y `evaluate.py torneo`
+compara todos los checkpoints con `--semilla 0`; `partida` y `niveles` aceptan `--semilla N`. El generador global
+de `random` se restaura tras cada partida con semilla, así que no altera el azar del entrenamiento.
+
 Con `--semilla N` (consola) o `semilla=` en `jugar_partida`/`evaluar` el reparto es el mismo siempre, y por asiento
 no depende de los agentes (comparaciones pareadas).
 
