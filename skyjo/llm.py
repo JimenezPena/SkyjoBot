@@ -15,6 +15,7 @@ Con razonar=False el prompt pide solo {"accion": n} y se ahorran tokens de salid
 import json
 import os
 import re
+import socket
 import time
 import urllib.error
 import urllib.request
@@ -158,6 +159,12 @@ class ClienteGemini:
                 return e.code, json.loads(e.read().decode("utf-8"))
             except ValueError:
                 return e.code, {}
+        except (TimeoutError, socket.timeout, ConnectionError) as e:      # red caída o respuesta que no llega: transitorio
+            return 599, {"error": {"message": f"{type(e).__name__}: {e}"}}
+        except urllib.error.URLError as e:
+            if isinstance(e.reason, (TimeoutError, socket.timeout, ConnectionError, socket.gaierror)):
+                return 599, {"error": {"message": f"{type(e.reason).__name__}: {e.reason}"}}
+            raise                                  # p. ej. certificado SSL inválido: reintentar no sirve
 
     def _espera_por_ritmo(self):
         if self._ultima is not None and self.intervalo:
@@ -196,7 +203,7 @@ class ClienteGemini:
             detalle = json.dumps(resp.get("error", {}))[:400]
             if codigo == 429 and "PerDay" in detalle:
                 raise CuotaAgotada(f"Cuota diaria agotada ({self.modelo}): {detalle}")
-            if codigo in (429, 500, 502, 503, 504) and intento < self.reintentos_http:
+            if codigo in (429, 500, 502, 503, 504, 599) and intento < self.reintentos_http:
                 self._dormir(self._retraso(resp) or min(2.0 ** (intento + 1), 60.0))
                 continue
             if codigo == 429:

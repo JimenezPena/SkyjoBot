@@ -231,3 +231,22 @@ def test_evaluar_con_semilla_es_reproducible_y_no_toca_el_azar_global():
     assert [r1[x]['puntos'] for x in k] == [r2[x]['puntos'] for x in k]
     r3 = evaluar(ag, n_partidas=6, semilla=6)
     assert [r1[x]['puntos'] for x in k] != [r3[x]['puntos'] for x in k]
+
+
+def test_gemini_reintenta_timeouts_y_no_cuelga_la_partida(monkeypatch):
+    import urllib.request
+    import pytest
+    from skyjo.llm import ClienteGemini
+    # 1) un timeout de red se trata como error transitorio y se reintenta
+    def lanza(*a, **k):
+        raise TimeoutError("The read operation timed out")
+    monkeypatch.setattr(urllib.request, "urlopen", lanza)
+    esperas = []
+    c = ClienteGemini(api_key="x", rpm=0, reintentos_http=2, _dormir=esperas.append)
+    with pytest.raises(RuntimeError, match="599"):
+        c("hola")
+    assert c.llamadas == 3 and len(esperas) == 2
+    # 2) si el timeout es pasajero, la siguiente llamada funciona
+    seq = iter([(599, {}), (200, {"candidates": [{"content": {"parts": [{"text": '{"accion": 1}'}]}}]})])
+    c2 = ClienteGemini(_post=lambda u, b: next(seq), rpm=0, _dormir=lambda s: None)
+    assert '"accion": 1' in c2("hola")

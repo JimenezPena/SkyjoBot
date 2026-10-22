@@ -17,6 +17,7 @@ import random
 from flask import Flask, render_template, jsonify, request, session
 from skyjo.v4_2 import SkyjoEnv            # motor de juego (las reglas son iguales en todas las versiones)
 from skyjo.consola import describir_accion
+from skyjo.heuristico import AgenteHeuristico
 from skyjo.niveles import cargar_nivel, listar_niveles, niveles_para
 from skyjo.vista import construir_vista
 
@@ -39,7 +40,14 @@ def get_agente(nivel):
 def decidir_bot(nivel, vista):
     """Acción del bot. Si es un agente LLM con razonar activado, imprime en la terminal su jugada y su motivo."""
     agente = get_agente(nivel)
-    accion = int(agente(vista))
+    try:
+        accion = int(agente(vista))
+    except Exception as e:
+        if not hasattr(getattr(agente, 'base', agente), 'cliente'):
+            raise
+        # un fallo del LLM (red, cuota...) no debe dejar la partida colgada: juega el heurístico y avisa
+        print(f"[{nivel}] ERROR del LLM ({type(e).__name__}: {e}); juega el heurístico", flush=True)
+        return int(AgenteHeuristico()(vista))
     motivo = getattr(getattr(agente, 'base', agente), 'ultimo_motivo', None)
     if motivo:
         print(f"[{nivel}] {describir_accion(accion, vista)}\n    ↳ {motivo}", flush=True)

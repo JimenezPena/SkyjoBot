@@ -151,3 +151,23 @@ def test_el_nivel_elegido_en_el_desplegable_se_aplica_en_1v1():
     assert c.post('/api/reset', json={"niveles": ["no_existe"]}).status_code == 400
     s = c.post('/api/step', json={"action": 1}).get_json()
     assert s["niveles"] == ["heuristico"]
+
+
+def test_un_fallo_del_llm_no_bloquea_la_partida_web(monkeypatch):
+    from skyjo.llm import AgenteLLM
+
+    def cliente_roto(prompt, vista, razonar):
+        raise TimeoutError("The read operation timed out")
+    monkeypatch.setitem(online_app._agentes, "llm_falso", AgenteLLM(cliente_roto))
+    c = online_app.app.test_client()
+    s = c.post('/api/reset', json={"niveles": ["llm_falso"]}).get_json()
+    for _ in range(40):
+        if s["turno_actual"] == 0:
+            acc = next(i for i, ok in enumerate(s["action_mask"]) if ok)
+            s = c.post('/api/step', json={"action": acc}).get_json()
+        else:
+            r = c.post('/api/ia_step')
+            assert r.status_code == 200, r.data               # antes: 500 y la partida se quedaba colgada
+            s = r.get_json()
+        if s["game_over"]:
+            break
