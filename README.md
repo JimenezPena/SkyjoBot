@@ -123,7 +123,9 @@ dependencias nuevas. La clave va en la variable de entorno `GEMINI_API_KEY` (nun
 nivel: `pensar` (tokens de pensamiento; 0 = sin pensar, más barato; -1 = dinámico), `rpm` (llamadas por minuto, para
 respetar el límite gratuito), `razonar`, `registro`. Reintenta 429/5xx esperando lo que indica la API, y si la cuota
 diaria se agota lanza `CuotaAgotada` y la partida se detiene. La consola imprime al final llamadas, respuestas
-inválidas y tokens usados. Mantenlo oculto en la web pública: cualquier visitante gastaría tu cuota.
+inválidas y tokens usados. El nivel acepta además `motivo_primero` (por defecto `true`: el motivo va antes de la acción, así el razonamiento
+influye en la decisión), `ayudas` (anota cada acción con los puntos/columnas que cambia, calculados en Python) y
+`estrategia` (consejos de juego en el prompt); `max_salida` es el tope sin contar `pensar`. Mantenlo oculto en la web pública: cualquier visitante gastaría tu cuota.
 
 ```bash
 export GEMINI_API_KEY=...

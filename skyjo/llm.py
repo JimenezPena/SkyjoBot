@@ -31,10 +31,69 @@ REGLAS = (
 )
 
 
-def construir_prompt(vista, razonar=False):
-    acciones = "\n".join(f"{a}: {describir_accion(a, vista)}" for a in vista.acciones_legales())
-    formato = ('{"accion": <número>, "motivo": "<una frase>"}' if razonar else '{"accion": <número>}')
-    return (f"{REGLAS}\n\n{vista_a_texto(vista)}\n\nAcciones legales:\n{acciones}\n\n"
+ESTRATEGIA = (
+    "Estrategia: las cartas bajas (-2, -1, 0) casi nunca se descartan: colócalas, mejor sobre una carta alta visible o "
+    "una oculta. Sustituye las cartas altas visibles (9-12). Busca columnas con tres cartas iguales: si tienes dos "
+    "iguales visibles en una columna y la carta de la mano es igual, colócala en la tercera casilla (elimina la "
+    "columna). No rompas una pareja visible de una columna. Con la carta del descarte, cógela solo si la colocas "
+    "mejor que la media de una carta nueva (~5). Cierra la ronda solo si crees tener menos puntos que los rivales."
+)
+MEDIA_OCULTA = 5.07          # valor medio de una carta del mazo (para estimar las casillas ocultas)
+
+
+def _casilla(a):
+    f, c = divmod((a - 2) % 12, 4)
+    return f, c
+
+
+def _efecto_colocar(vista, valor, f, c):
+    """(cambio estimado de mis puntos, texto) al colocar `valor` en (f, c) de mi tablero."""
+    estado, vals = vista.estado[0], vista.valores[0]
+    antes = float(vals[f, c]) if estado[f, c] == 1 else MEDIA_OCULTA
+    otras = [(r, c) for r in range(3) if r != f]
+    if all(estado[r, cc] == 1 and int(vals[r, cc]) == int(valor) for r, cc in otras):
+        quita = antes + 2 * valor
+        return -quita, f"completa la columna {c + 1} de {valor}s y la elimina: {-quita:+.0f} puntos"
+    d = valor - antes
+    if estado[f, c] == 1 and d == 0:
+        return 0.0, "no cambia nada (es la misma carta)"
+    quien = (f"sustituye el {int(antes)} visible" if estado[f, c] == 1 else "sobre una carta oculta (~5)")
+    pareja = sum(1 for r, cc in otras if estado[r, cc] == 1 and int(vals[r, cc]) == int(valor))
+    extra = f"; forma pareja en la columna {c + 1}" if pareja == 1 else ""
+    return d, f"{quien}: {d:+.0f} puntos{extra}"
+
+
+def describir_con_ayudas(a, vista):
+    """Descripción de la acción con sus consecuencias calculadas (cambio de puntos, columnas)."""
+    if a == 1:
+        return "roba del mazo (carta de -2 a 12, media ~5)"
+    if a == 0:
+        v = int(vista.top_descarte)
+        mejor = min((_efecto_colocar(vista, v, *_casilla(k)) + (k,) for k in range(2, 14)
+                     if vista.estado[0][_casilla(k)] != -1), key=lambda t: t[0], default=None)
+        extra = f"; mejor colocación: fila {_casilla(mejor[2])[0] + 1}, col {_casilla(mejor[2])[1] + 1} ({mejor[0]:+.0f} puntos)" if mejor else ""
+        return f"coge el descarte ({v}){extra}"
+    base = describir_accion(a, vista)
+    f, c = _casilla(a)
+    if 2 <= a <= 13:
+        return f"{base} → {_efecto_colocar(vista, vista.mano, f, c)[1]}"
+    return f"{base} → la carta destapada es desconocida; la {vista.mano} se pierde en el descarte"
+
+
+def construir_prompt(vista, razonar=False, motivo_primero=True, ayudas=False, estrategia=False):
+    """razonar: pide un "motivo". motivo_primero: va antes de la acción, así el razonamiento influye en la decisión
+    (si va después solo la justifica). ayudas: anota cada acción con sus puntos/columnas calculados en Python.
+    estrategia: añade unos consejos de juego al prompt."""
+    desc = describir_con_ayudas if ayudas else describir_accion
+    acciones = "\n".join(f"{a}: {desc(a, vista)}" for a in vista.acciones_legales())
+    if not razonar:
+        formato = '{"accion": <número>}'
+    elif motivo_primero:
+        formato = '{"motivo": "<razonamiento breve>", "accion": <número>}'
+    else:
+        formato = '{"accion": <número>, "motivo": "<una frase>"}'
+    consejos = f"\n\n{ESTRATEGIA}" if estrategia else ""
+    return (f"{REGLAS}{consejos}\n\n{vista_a_texto(vista)}\n\nAcciones legales:\n{acciones}\n\n"
             f"Responde solo con JSON: {formato}")
 
 
@@ -71,7 +130,8 @@ class ClienteGemini:
     """Cliente de la API REST de Gemini (sin dependencias: urllib). La clave NUNCA va en niveles.json: variable de entorno.
 
     pensar: presupuesto de tokens de "pensamiento" de gemini-2.5-flash (0 = sin pensar, lo más barato y rápido;
-            -1 = dinámico; N = hasta N tokens). Los tokens de pensamiento cuentan como salida.
+            -1 = dinámico; N = hasta N tokens). Los tokens de pensamiento cuentan como salida y dentro del tope
+            maxOutputTokens de la API, por eso se suman a max_salida (si no, la respuesta saldría cortada/vacía).
     rpm:    llamadas máximas por minuto (se espera entre llamadas para no chocar con el límite gratuito).
     """
     URL = "https://generativelanguage.googleapis.com/v1beta/models/{modelo}:generateContent"
@@ -117,7 +177,7 @@ class ClienteGemini:
 
     def __call__(self, prompt, vista=None, razonar=False):
         cuerpo = {"contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                  "generationConfig": {"temperature": self.temperatura, "maxOutputTokens": self.max_salida,
+                  "generationConfig": {"temperature": self.temperatura, "maxOutputTokens": self.max_salida + (self.pensar if self.pensar > 0 else 8192 if self.pensar < 0 else 0),
                                        "responseMimeType": "application/json",
                                        "thinkingConfig": {"thinkingBudget": self.pensar}}}
         url = self.URL.format(modelo=self.modelo)
@@ -149,15 +209,17 @@ class ClienteGemini:
 
 
 class AgenteLLM(Agente):
-    def __init__(self, cliente, razonar=False, nombre="llm", registro=None, reintentos=1):
+    def __init__(self, cliente, razonar=False, nombre="llm", registro=None, reintentos=1,
+                 motivo_primero=True, ayudas=False, estrategia=False):
         self.cliente, self.razonar, self.nombre = cliente, razonar, nombre
+        self.opciones_prompt = dict(motivo_primero=motivo_primero, ayudas=ayudas, estrategia=estrategia)
         self.registro, self.reintentos = registro, reintentos       # registro: ruta de un .jsonl (opcional)
         self.llamadas = self.fallos = 0
         self.ultimo_motivo = None
         self._respaldo = AgenteHeuristico()
 
     def decidir(self, vista):
-        prompt = construir_prompt(vista, self.razonar)
+        prompt = construir_prompt(vista, self.razonar, **self.opciones_prompt)
         accion = motivo = texto = None
         for _ in range(self.reintentos + 1):
             self.llamadas += 1
@@ -185,4 +247,6 @@ def crear_agente_llm(cfg, device="cpu", ruta=None):
         cliente = ClienteGemini(**{k: cfg[k] for k in ("modelo", "temperatura", "pensar", "rpm", "max_salida") if k in cfg})
     else:
         raise ValueError(f"Cliente LLM desconocido: '{clase}' (disponibles: 'falso', 'gemini')")
-    return AgenteLLM(cliente, razonar=bool(cfg.get("razonar", False)), registro=cfg.get("registro"))
+    return AgenteLLM(cliente, razonar=bool(cfg.get("razonar", False)), registro=cfg.get("registro"),
+                     motivo_primero=bool(cfg.get("motivo_primero", True)), ayudas=bool(cfg.get("ayudas", False)),
+                     estrategia=bool(cfg.get("estrategia", False)))

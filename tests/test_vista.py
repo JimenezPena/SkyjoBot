@@ -203,3 +203,18 @@ def test_cliente_gemini_sin_red():
     ag = AgenteLLM(r, reintentos=0)
     jugar_partida([ag, AgenteHeuristico()], semilla=1, max_pasos=3)
     assert ag.fallos >= 1
+
+
+def test_prompt_con_ayudas_motivo_primero_y_estrategia():
+    from skyjo.llm import construir_prompt, ESTRATEGIA
+    from skyjo.v4_2 import SkyjoEnv
+    env = SkyjoEnv(2, semilla=3); env.reset()
+    env.tableros[0, :, 3, 0] = [6, 6, 9]; env.tableros[0, :, 3, 1] = [1, 1, 0]
+    env.fase_turno, env.carta_en_mano, env.origen_robo = 2, 6, 'MAZO'
+    v = construir_vista(env, 0)
+    base = construir_prompt(v, razonar=False)
+    assert 'completa la columna' not in base and ESTRATEGIA not in base and '"motivo"' not in base
+    p = construir_prompt(v, razonar=True, ayudas=True, estrategia=True)
+    assert '13: coloca la 6 en fila 3, col 4 → completa la columna 4 de 6s y la elimina: -17 puntos' in p
+    assert ESTRATEGIA in p and p.rstrip().endswith('{"motivo": "<razonamiento breve>", "accion": <número>}')
+    assert construir_prompt(v, razonar=True, motivo_primero=False).rstrip().endswith('{"accion": <número>, "motivo": "<una frase>"}')
