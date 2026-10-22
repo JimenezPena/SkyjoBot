@@ -69,6 +69,12 @@
             margin-bottom: 5px;
         }
 
+        .vis-pts {
+            font-size: 0.75rem;
+            color: #aaa;
+            font-weight: normal;
+        }
+
         /* CARTAS */
         .card {
             width: 65px;
@@ -223,6 +229,31 @@
         .btn-action:hover { background-color: #2ec771; }
         .btn-action:disabled { background-color: #7f8c8d; cursor: not-allowed; }
 
+        .selector-bots {
+            font-size: 0.9rem;
+            color: #ccc;
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .selector-bots select {
+            background: #2c3e50;
+            color: #fff;
+            border: 1px solid #ffffff44;
+            border-radius: 6px;
+            padding: 4px 6px;
+        }
+
+        .link-vuelta {
+            color: #aaa;
+            font-size: 0.85rem;
+            text-decoration: none;
+        }
+        .link-vuelta:hover { text-decoration: underline; }
+
         /* Adaptación para pantallas pequeñas / móviles verticales */
 	@media (max-width: 600px) {
 	    html, body {
@@ -289,18 +320,24 @@
 
 <body>
 
-    <h1>Skyjo vs IA DQN</h1>
+    <h1>Skyjo: tú contra un bot</h1>
 
 	<div class="game-container">
-	    <!-- FILA DE TABLEROS: tú a la izquierda, IA a la derecha -->
+        <!-- Selector de nivel del bot -->
+        <div class="selector-bots">
+            🤖 Bots: <select id="sel-1"></select>
+            <span class="link-vuelta">(se aplica al reiniciar)</span>
+        </div>
+
+	    <!-- FILA DE TABLEROS: tú a la izquierda, bot a la derecha -->
 	    <div class="boards-row">
 		<div id="wrapper-ia" class="board-wrapper">
-		    <div class="player-label">🤖 IA (Jugador 1)</div>
+		    <div class="player-label" id="label-ia">🤖 Bot  <span class="vis-pts">(0 visibles)</span></div>
 		    <div id="board-ia" class="board"></div>
 		</div>
 
 		<div id="wrapper-human" class="board-wrapper">
-		    <div class="player-label">👤 Tú (Jugador 0)</div>
+		    <div class="player-label" id="label-human">👤 Tú <span class="vis-pts">(0 visibles)</span></div>
 		    <div id="board-human" class="board"></div>
 		</div>
 	    </div>
@@ -334,7 +371,7 @@
 	    <div class="status-panel" id="status-msg">Cargando partida...</div>
 	  
 	    <button class="btn-action" onclick="nuevaPartida()">Reiniciar Partida</button>
-	    <a href="/cuatro" style="color:#aaa; font-size:0.85rem;">Jugar 1 contra 3 bots (4 jugadores)</a>
+	    <a href="/cuatro" class="link-vuelta">Jugar 1 contra 3 bots (4 jugadores)</a>
 	</div>
 
     <script>
@@ -342,6 +379,7 @@
 	let partidaId = 0;              // permite cancelar el bucle de la IA si reinicias
 	const IA_DELAY_MS = 2000;       // retraso entre acciones de la IA
 	let modoDescarte = false;       // controla si estamos eligiendo qué carta voltear
+    let nivelIaActual = "1";        // nivel actual seleccionado
 
 	const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -369,8 +407,17 @@
             return 'card-high';
         }
 
+        function ptsVisibles(tab) {
+            let s = 0;
+            for (const fila of tab) for (const [v, vis] of fila) if (vis === 1) s += v;
+            return s;
+        }
+
         function renderGame(state) {
             gameState = state;
+            if (state.niveles && state.niveles.length > 0) {
+                nivelIaActual = state.niveles[0];
+            }
 
 	    // Resaltar de quién es el turno
 	    const wrapperHuman = document.getElementById('wrapper-human');
@@ -403,6 +450,9 @@
                     boardIA.appendChild(cardDiv);
                 }
             }
+            let txtIa = `🤖 Bot (${nivelIaActual}) <span class="vis-pts">(${ptsVisibles(state.tableros[1])} visibles`;
+            if (state.game_over) txtIa += ` · ${state.puntos[1]} pts`;
+            document.getElementById('label-ia').innerHTML = txtIa + ')</span>';
 
             // 2. Render Tablero Humano
             const boardHuman = document.getElementById('board-human');
@@ -419,6 +469,9 @@
                     boardHuman.appendChild(cardDiv);
                 }
             }
+            let txtHum = `👤 Tú <span class="vis-pts">(${ptsVisibles(state.tableros[0])} visibles`;
+            if (state.game_over) txtHum += ` · ${state.puntos[0]} pts`;
+            document.getElementById('label-human').innerHTML = txtHum + ')</span>';
 
             // 3. Render Descarte y Carta en Mano
             const cardDiscard = document.getElementById('deck-discard');
@@ -444,7 +497,7 @@
 	    	const empate = state.puntos[0] === state.puntos[1];
 
 	    	if (humanoGana) {
-		    msg.innerHTML = `🎉 <b>¡VICTORIA!</b> 🎉<br>Tú: ${state.puntos[0]} pts | IA: ${state.puntos[1]} pts`;
+		    msg.innerHTML = `🎉 <b>¡VICTORIA!</b> 🎉<br>Tú: ${state.puntos[0]} pts | Bot: ${state.puntos[1]} pts`;
 		
 		    // Efecto de Confeti para la victoria
 		    confetti({
@@ -453,23 +506,33 @@
 		    	origin: { y: 0.6 }
 		    });
 	    	} else if (empate) {
-		    msg.innerHTML = `🤝 <b>¡EMPATE!</b><br>Tú: ${state.puntos[0]} pts | IA: ${state.puntos[1]} pts`;
+		    msg.innerHTML = `🤝 <b>¡EMPATE!</b><br>Tú: ${state.puntos[0]} pts | Bot: ${state.puntos[1]} pts`;
 	    	} else {
-		    msg.innerHTML = `💀 <b>HAS PERDIDO</b><br>Tú: ${state.puntos[0]} pts | IA: ${state.puntos[1]} pts`;
+		    msg.innerHTML = `💀 <b>HAS PERDIDO</b><br>Tú: ${state.puntos[0]} pts | Bot: ${state.puntos[1]} pts`;
 		
 		    // Efecto de sacudida en el tablero del jugador al perder
-		    const boardHuman = document.getElementById('wrapper-human');
-		    boardHuman.classList.add('defeat-effect');
-		    setTimeout(() => boardHuman.classList.remove('defeat-effect'), 500);
+		    const boardHumanWrapper = document.getElementById('wrapper-human');
+		    boardHumanWrapper.classList.add('defeat-effect');
+		    setTimeout(() => boardHumanWrapper.classList.remove('defeat-effect'), 500);
 	    	}
-	    }
+	    } else if (state.turno_actual === 0) {
+            msg.innerHTML = state.fase_turno === 1 ? 'Tu turno: roba del mazo o toma el descarte' : 'Tu turno: coloca la carta en tu tablero o descártala';
+        } else {
+            msg.innerHTML = 'Turno de la IA...';
+        }
         }
 
 	async function nuevaPartida() {
 	    partidaId++;
-	    const res = await fetch('/api/reset', { method: 'POST' });
+        const nivelSeleccionado = document.getElementById('sel-1').value;
+	    const res = await fetch('/api/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ niveles: [nivelSeleccionado] })
+        });
 	    const data = await res.json();
 	    renderGame(data);
+        turnoIA(partidaId);
 	}
 
 	async function enviarAccion(accion) {
@@ -536,8 +599,25 @@
 	    }
 	}
 
-        // Iniciar al cargar la página
-        nuevaPartida();
+        async function cargarNiveles() {
+            try {
+                const res = await fetch('/api/niveles');
+                if (res.ok) {
+                    const d = await res.json();
+                    const sel = document.getElementById('sel-1');
+                    sel.innerHTML = d.niveles.map(n => `<option value="${n}">${n}</option>`).join('');
+                    sel.value = d.por_defecto;
+                    nivelIaActual = d.por_defecto;
+                }
+            } catch (e) {
+                // Si el endpoint de niveles no estuviera disponible, dejamos una opción por defecto
+                const sel = document.getElementById('sel-1');
+                sel.innerHTML = '<option value="1">1</option>';
+            }
+        }
+
+        // Iniciar al cargar la página cargando los niveles y luego la partida
+        cargarNiveles().then(nuevaPartida);
     </script>
 </body>
 </html>
