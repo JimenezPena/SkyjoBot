@@ -171,6 +171,19 @@ def test_match_completo_hasta_100_puntos():
     assert abs(sum(v['winrate'] for k, v in res.items() if not k.startswith('_')) - 1) < 1e-9
 
 
+def test_match_con_semilla_es_reproducible_y_no_toca_el_azar_global():
+    from skyjo.match import evaluar_matches, jugar_match
+    ag = [AgenteHeuristico(), AgenteHeuristico()]
+    m1, m2, m3 = jugar_match(ag, semilla=3), jugar_match(ag, semilla=3), jugar_match(ag, semilla=4)
+    assert m1 == m2 and m1['total'] != m3['total']
+    random.seed(99)
+    esperado = random.random()
+    random.seed(99)
+    r1 = evaluar_matches(ag, n_matches=2, semilla=5)
+    assert random.random() == esperado
+    assert r1 == evaluar_matches(ag, n_matches=2, semilla=5)
+
+
 def test_cliente_gemini_sin_red():
     import json
     import pytest

@@ -68,8 +68,8 @@ def partida(n, device, asientos, ruta, plots=None, semilla=None):
         print("\nHistogramas:", *histogramas(res['_partidas'], plots), sep="\n  ")
 
 
-def match(n, device, asientos, ruta, limite):
-    imprimir_matches(evaluar_matches([cargar_nivel(a, device, ruta) for a in asientos], n, limite))
+def match(n, device, asientos, ruta, limite, semilla=None):
+    imprimir_matches(evaluar_matches([cargar_nivel(a, device, ruta) for a in asientos], n, limite, semilla=semilla))
 
 
 if __name__ == "__main__":
@@ -84,8 +84,7 @@ if __name__ == "__main__":
     for nombre in ('niveles', 'partida', 'match'):
         s = sub.add_parser(nombre)
         s.add_argument('-n', type=int, default=300)
-        if nombre != 'match':
-            s.add_argument('--semilla', type=int, default=None, help='mismos repartos en cada ejecución (comparación pareada)')
+        s.add_argument('--semilla', type=int, default=None, help='mismos repartos en cada ejecución (comparación pareada)')
         s.add_argument('--niveles', default=None, help='ruta a un niveles.json alternativo')
         if nombre == 'match':
             s.add_argument('--limite', type=int, default=100, help='el match acaba al llegar alguien a estos puntos')
@@ -101,6 +100,6 @@ if __name__ == "__main__":
     elif a.cmd == 'niveles':
         niveles(a.n, dev, a.niveles, a.semilla)
     elif a.cmd == 'match':
-        match(a.n, dev, a.asientos, a.niveles, a.limite)
+        match(a.n, dev, a.asientos, a.niveles, a.limite, a.semilla)
     else:
         partida(a.n, dev, a.asientos, a.niveles, a.plots, a.semilla)

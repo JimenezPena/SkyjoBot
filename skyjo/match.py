@@ -12,12 +12,15 @@ import random
 from .partida import jugar_partida, _nombres
 
 
-def jugar_match(agentes, limite=100, motor=None, max_pasos=3000, max_rondas=100):
-    """Devuelve dict(total=[puntos acumulados por asiento], rondas, ganadores, truncado)."""
+def jugar_match(agentes, limite=100, motor=None, max_pasos=3000, max_rondas=100, semilla=None):
+    """Devuelve dict(total=[puntos acumulados por asiento], rondas, ganadores, truncado).
+    Con semilla, cada ronda recibe una semilla derivada (determinista), así que el match entero es reproducible:
+    misma semilla + mismos agentes = mismo match."""
     n = len(agentes)
     total, rondas = [0] * n, 0
+    rng = None if semilla is None else random.Random(semilla)
     while max(total) < limite and rondas < max_rondas:
-        r = jugar_partida(agentes, motor, max_pasos)
+        r = jugar_partida(agentes, motor, max_pasos, semilla=None if rng is None else rng.randrange(2 ** 31))
         if r.truncada:
             return dict(total=total, rondas=rondas, ganadores=[], truncado=True)
         total = [t + p for t, p in zip(total, r.puntos)]
@@ -36,9 +39,10 @@ def evaluar_matches(agentes, n_matches=50, limite=100, motor=None, max_pasos=300
         rng.shuffle(perms)
     acc = {k: dict(m=0, victorias=0.0, total=0.0) for k in nombres}
     rondas, truncados = [], 0
+    semillas = [rng.randrange(2 ** 31) for _ in range(n_matches)] if semilla is not None else [None] * n_matches
     for g in range(n_matches):
         p = perms[g % len(perms)] if perms else rng.sample(range(n), n)       # asiento s lo ocupa el agente p[s]
-        r = jugar_match([agentes[i] for i in p], limite, motor, max_pasos)
+        r = jugar_match([agentes[i] for i in p], limite, motor, max_pasos, semilla=semillas[g])
         if r['truncado']:
             truncados += 1
             continue
