@@ -4,13 +4,8 @@
   "dqn_5.1": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_1.pth"},
   "dqn_5.3": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_3.pth"},
   "aleatorio": {"tipo": "aleatorio"},
+  "llm_falso": {"tipo": "llm", "cliente": "falso", "nivel_base": "dqn_5.3", "razonar": true, "oculto": false},
   "llm_gemini": {"tipo": "llm", "cliente": "gemini", "modelo": "gemini-3.5-flash-lite", "pensar": 0, "rpm": 14, "nivel_pensamiento": "high","razonar": true, "oculto": true, "registro": "llm_gemini.jsonl"},
-  "llm_falso": {"tipo": "llm", "cliente": "falso", "nivel_base": "dqn_5.1", "razonar": true, "oculto": false},
-
-  "dqn_5.0": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_0.pth", "oculto": true},
-  "dqn_5.0.2j": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_0_2j.pth", "oculto": true},
-  "dqn_5.1.2j": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_1_2j.pth", "oculto": true},
-  "dqn_5.1.2j": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_1_2j.pth", "oculto": true},
-  "dqn_5.2": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_2.pth", "oculto": true},
-  "dqn_5.2+": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_2_vic.pth", "oculto": true}
-}
+  
+   "dqn_5.2": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_2.pth", "oculto": true},
+ }
