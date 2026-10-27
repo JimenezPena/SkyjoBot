@@ -98,6 +98,25 @@ def test_entrenamiento_self_play_con_4_y_2_jugadores_corre_y_guarda_un_modelo_us
         assert r['_global']['truncadas'] == 0 and r['_dqn']['ilegales'] == 0
 
 
+def test_evaluar_rota_el_dqn_por_todos_los_asientos_de_cada_baraja(monkeypatch):
+    import skyjo.v5_0.agents as ag
+    from skyjo.heuristico import AgenteHeuristico
+
+    class Clon(AgenteHeuristico):                       # un 'DQN' que juega como el heurístico
+        nombre = 'clon'
+
+        def __init__(self, net, device='cpu'):
+            super().__init__()
+
+    monkeypatch.setattr(ag, 'AgenteDQN', Clon)
+    for n in (2, 4):
+        r = ag.evaluar_vs_heuristicos(None, 'cpu', n, n_partidas=3 * n, semilla=7)
+        assert r['_global']['partidas'] == 3 * n and r['_global']['truncadas'] == 0
+        # con el DQN en todos los asientos de cada baraja, un clon del heurístico da los mismos puntos que los rivales
+        assert abs(r['clon']['puntos'] - r['heuristicos']['puntos']) < 1e-9
+        assert r == ag.evaluar_vs_heuristicos(None, 'cpu', n, n_partidas=3 * n, semilla=7)
+
+
 def test_el_buffer_guarda_y_devuelve_observaciones_de_cualquier_n():
     from skyjo.v5_0 import ReplayBuffer
     for n in (2, 3, 5):

@@ -20,7 +20,7 @@ CONFIG = {
     'SAVE_EVERY': 1000,
     'LOG_EVERY': 500,
     'EVAL_EVERY': 1000,          # duelo vs heurísticos cada 2500 episodios
-    'EVAL_GAMES': 300,           # partidas por evaluación (>= 1000 para conclusiones fiables)
+    'EVAL_GAMES': 300,           # partidas por evaluación = barajas x nº de asientos (cada baraja se juega con el DQN en todos los asientos); el mejor checkpoint = menos puntos medios
     'EVAL_SEMILLA': 12345,       # mismos repartos en todas las evaluaciones (comparación pareada entre checkpoints); None = azar
     'EVAL_JUGADORES': [4, 2],    # nº de asientos a evaluar; el primero decide el "mejor checkpoint"
     'CKPT_DIR': 'checkpoints_5.1',

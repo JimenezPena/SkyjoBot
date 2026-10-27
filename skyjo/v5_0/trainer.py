@@ -21,7 +21,7 @@ from .observacion import observacion_desde_vista, a_tensores
 from .imitacion import preentrenar_imitacion, paso_margen, recompensas_finales
 from .rivales import PoolRivales, pesos_en
 
-def guardar_checkpoint(policy_net, target_net, optimizer, global_step, episodio, mejor_wr, epsilon, buffer, filepath="/content/drive/MyDrive/SkyjoBot/checkpoint.pt"):
+def guardar_checkpoint(policy_net, target_net, optimizer, global_step, episodio, mejor_pts, epsilon, buffer, filepath="/content/drive/MyDrive/SkyjoBot/checkpoint.pt"):
     # Asegúrate de que el directorio existe en Google Drive
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     
@@ -31,7 +31,7 @@ def guardar_checkpoint(policy_net, target_net, optimizer, global_step, episodio,
         'optimizer_state': optimizer.state_dict(),
         'global_step': global_step,
         'episodio': episodio,
-        'mejor_wr': mejor_wr,
+        'mejor_pts': mejor_pts,          # menor puntuación media del DQN vs heurísticos (los checkpoints antiguos guardaban 'mejor_wr')
         'epsilon': epsilon,
         'buffer_state': {
             'ptr': buffer.ptr,
@@ -58,7 +58,7 @@ def cargar_checkpoint(filepath, policy_net, target_net, optimizer, buffer, devic
         
         global_step = checkpoint['global_step']
         episodio_inicio = checkpoint['episodio'] + 1
-        mejor_wr = checkpoint.get('mejor_wr', -1.0)
+        mejor_pts = checkpoint.get('mejor_pts', float('inf'))      # checkpoint antiguo (winrate): la 1ª evaluación fija el mejor
         epsilon = checkpoint.get('epsilon', None)
         
         # Restaurar el buffer si existe en el checkpoint
@@ -74,11 +74,11 @@ def cargar_checkpoint(filepath, policy_net, target_net, optimizer, buffer, devic
             buffer.next_masks = bs['next_masks']
             print(f"[Checkpoint] Buffer restaurado con éxito ({buffer.size} elementos).")
             
-        print(f"[Checkpoint] Reanudando desde episodio {episodio_inicio}, global_step {global_step}, mejor_wr: {100 * mejor_wr:.1f}%, epsilon: {epsilon}")
-        return global_step, episodio_inicio, mejor_wr, epsilon
+        print(f"[Checkpoint] Reanudando desde episodio {episodio_inicio}, global_step {global_step}, mejor_pts: {mejor_pts:.2f}, epsilon: {epsilon}")
+        return global_step, episodio_inicio, mejor_pts, epsilon
     else:
         print("[Checkpoint] No se encontró ningún checkpoint previo. Empezando desde cero.")
-        return 0, 1, -1.0, None
+        return 0, 1, float('inf'), None
             
 def entrenar_step(policy_net, target_net, replay_buffer, optimizer, batch_size, gamma, device):
     """Paso de optimización con Double Dueling DQN."""
@@ -134,7 +134,7 @@ def entrenar_skyjo(config):
     eval_n = [n] + [x for x in config.get('EVAL_JUGADORES', []) if x != n]     # el entrenado va primero: decide el mejor checkpoint
     
     # ---- Cargando checkpoint guardado si existe. Comenzar nuevo en caso contrario.
-    global_step, inicio_episodio, mejor_wr, ckpt_epsilon = cargar_checkpoint(f"{config['CKPT_DIR']}/checkpoint.pt", policy_net, target_net, optimizer, buffer, device)
+    global_step, inicio_episodio, mejor_pts, ckpt_epsilon = cargar_checkpoint(f"{config['CKPT_DIR']}/checkpoint.pt", policy_net, target_net, optimizer, buffer, device)
     
     epsilon = ckpt_epsilon if ckpt_epsilon is not None else config['EPSILON_START']
 
@@ -269,17 +269,17 @@ def entrenar_skyjo(config):
                 res = evaluar_vs_heuristicos(policy_net, device, nj, config['EVAL_GAMES'], semilla=config.get('EVAL_SEMILLA'))
                 imprimir_vs_heuristicos(f"[ep {episodio}] 1 DQN vs {nj - 1} heurísticos", res)
                 if nj == n:
-                    wr = res['_dqn']['winrate']
+                    pts = res['_dqn']['puntos']
             torch.save(policy_net.state_dict(), f"{config['CKPT_DIR']}/ep{episodio}.pth")
-            if wr > mejor_wr:
-                mejor_wr = wr
+            if pts < mejor_pts:                                              # el mejor checkpoint = menos puntos medios
+                mejor_pts = pts
                 torch.save(policy_net.state_dict(), f"{config['CKPT_DIR']}/best.pth")
-                print(f"   -> nuevo mejor checkpoint (winrate {100 * mejor_wr:.1f}% con {n} jugadores)")
+                print(f"   -> nuevo mejor checkpoint (puntos medios {mejor_pts:.2f} con {n} jugadores)")
                 
         if episodio % config['SAVE_EVERY'] == 0:
-            guardar_checkpoint(policy_net, target_net, optimizer, global_step, episodio, mejor_wr, epsilon, buffer, f"{config['CKPT_DIR']}/checkpoint.pt")
+            guardar_checkpoint(policy_net, target_net, optimizer, global_step, episodio, mejor_pts, epsilon, buffer, f"{config['CKPT_DIR']}/checkpoint.pt")
             if pool is not None:
                 pool.guardar(pool_path)
 
     torch.save(policy_net.state_dict(), config['SAVE_PATH'])
-    print(f"\n¡Entrenamiento completado! Modelo guardado en '{config['SAVE_PATH']}'. Mejor winrate: {100 * mejor_wr:.1f}%")
+    print(f"\n¡Entrenamiento completado! Modelo guardado en '{config['SAVE_PATH']}'. Mejores puntos medios vs heurísticos: {mejor_pts:.2f}")
