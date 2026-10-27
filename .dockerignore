@@ -1,0 +1,14 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+.ipynb_checkpoints/
+CarpetaOculta/
+.pytest_cache/
+plot*/
+llm_gemini.jsonl
+*.pyo
+.git
+.github/
