@@ -17,6 +17,8 @@ CONFIG = {
     'WARMUP_STEPS': 2000,
     'RECOMPENSA_FINAL': 1.5,     # recompensa final = 1.5 * (media de puntos de los rivales - mis puntos)
     'RECOMPENSA_VICTORIA': 20.0,  # extra por ganar: V * (victoria - 1/n); prueba 15-30 (los puntos suelen valer ~±20)
+    'RECOMPENSA_REF': 'media',   # referencia de la recompensa final: 'media' = mejor que la media de rivales; 'mejor' = solo positiva si ganas (con 'mejor' baja RECOMPENSA_VICTORIA)
+    'BARAJAS_SIMETRICAS': True,  # con RIVALES: n episodios seguidos con la misma baraja y el aprendiz rotando por los n asientos
     'SAVE_EVERY': 1000,
     'LOG_EVERY': 500,
     'EVAL_EVERY': 1000,          # duelo vs heurísticos cada 2500 episodios

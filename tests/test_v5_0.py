@@ -117,6 +117,34 @@ def test_evaluar_rota_el_dqn_por_todos_los_asientos_de_cada_baraja(monkeypatch):
         assert r == ag.evaluar_vs_heuristicos(None, 'cpu', n, n_partidas=3 * n, semilla=7)
 
 
+def test_recompensa_final_con_referencia_media_o_mejor_rival():
+    from skyjo.v5_0.imitacion import recompensas_finales
+    p = [10, 20, 30, 40]
+    base = dict(RECOMPENSA_FINAL=1.5, RECOMPENSA_VICTORIA=0.0)
+    assert np.allclose(recompensas_finales(p, base), [30, 10, -10, -30])                              # media (anterior)
+    assert np.allclose(recompensas_finales(p, dict(base, RECOMPENSA_REF='mejor')), [15, -15, -30, -45])
+    assert np.allclose(recompensas_finales([10, 20], dict(base, RECOMPENSA_REF='mejor')),
+                       recompensas_finales([10, 20], base))                                           # con 2 son iguales
+    r = recompensas_finales([12, 12, 30, 40], dict(base, RECOMPENSA_REF='mejor'))
+    assert r[0] == 0 and r[1] == 0 and (r[2:] < 0).all()      # solo es positiva si se gana; el empate en cabeza da 0
+
+
+def test_barajas_simetricas_cada_asiento_aprende_k_veces_por_grupo():
+    from skyjo.v5_0.imitacion import asientos_aprendiz
+    for n, k in ((4, 1), (4, 2), (3, 1), (2, 1)):
+        for g in range(2):                                              # dos grupos seguidos de n episodios
+            eps = range(g * n + 1, g * n + n + 1)
+            assert [sum(s in asientos_aprendiz(e, n, k) for e in eps) for s in range(n)] == [k] * n
+
+
+def test_entrenamiento_con_barajas_simetricas_y_referencia_mejor_rival(tmp_path):
+    import skyjo.v5_0 as v5
+    cfg = dict(_config_mini(tmp_path, 4), NUM_EPISODIOS=8, RIVALES={'heuristico': 1.0}, ASIENTOS_APRENDIZ=1,
+               BARAJAS_SIMETRICAS=True, RECOMPENSA_REF='mejor')
+    v5.entrenar_skyjo(cfg)
+    assert os.path.exists(cfg['SAVE_PATH'])
+
+
 def test_el_buffer_guarda_y_devuelve_observaciones_de_cualquier_n():
     from skyjo.v5_0 import ReplayBuffer
     for n in (2, 3, 5):
