@@ -7,5 +7,5 @@
   "llm_falso": {"tipo": "llm", "cliente": "falso", "nivel_base": "dqn_5.3", "razonar": true, "oculto": false},
   "llm_gemini": {"tipo": "llm", "cliente": "gemini", "modelo": "gemini-3.5-flash-lite", "pensar": 0, "rpm": 14, "nivel_pensamiento": "high","razonar": true, "oculto": true, "registro": "llm_gemini.jsonl"},
   
-   "dqn_5.2": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_2.pth", "oculto": true},
+   "dqn_5.2": {"tipo": "dqn", "version": "v5_0", "modelo": "modelos/v5_2.pth", "oculto": true}
  }
