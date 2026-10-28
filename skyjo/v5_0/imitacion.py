@@ -60,17 +60,29 @@ def paso_margen(policy_net, fuente, optimizer, config, device):
     
     
 def recompensas_finales(puntos, config):
-    """finales[j] = RECOMPENSA_FINAL * (media de puntos de los rivales - mis puntos)
-                    + RECOMPENSA_VICTORIA * (victoria_j - 1/n)     [victoria compartida en empates]."""
+    """finales[j] = RECOMPENSA_FINAL * (puntos de referencia de los rivales - mis puntos)
+                    + RECOMPENSA_VICTORIA * (victoria_j - 1/n)     [victoria compartida en empates].
+    RECOMPENSA_REF decide la referencia: 'media' (por defecto) = media de los rivales, es decir, premia ser mejor que
+    la media; 'mejor' = el mejor rival, es decir, solo es positiva si ganas (menor puntuación total)."""
     puntos = np.asarray(puntos, dtype=np.float64)
     n = len(puntos)
-    media_riv = (puntos.sum() - puntos) / (n - 1)
-    finales = config['RECOMPENSA_FINAL'] * (media_riv - puntos)
+    if config.get('RECOMPENSA_REF', 'media') == 'mejor':
+        ref_riv = np.array([np.delete(puntos, j).min() for j in range(n)])
+    else:
+        ref_riv = (puntos.sum() - puntos) / (n - 1)
+    finales = config['RECOMPENSA_FINAL'] * (ref_riv - puntos)
     v = config.get('RECOMPENSA_VICTORIA', 0.0)
     if v:
         gana = (puntos == puntos.min()).astype(np.float64)
         finales = finales + v * (gana / gana.sum() - 1.0 / n)
     return finales
+
+
+def asientos_aprendiz(episodio, n, k=1):
+    """Asientos que aprenden en el episodio (1, 2, ...) cuando las barajas son simétricas: el asiento de salida rota
+    0, 1, ..., n-1, 0, ... y con k > 1 aprenden k asientos consecutivos. n episodios seguidos comparten baraja."""
+    s = (episodio - 1) % n
+    return {(s + i) % n for i in range(max(1, min(k, n)))}
 
 
 def _recompensas_finales(env, config):

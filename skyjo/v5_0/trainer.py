@@ -18,7 +18,7 @@ from .buffer import ReplayBuffer
 from .env import SkyjoEnv, N_ACCIONES
 from .model import SkyjoDQN
 from .observacion import observacion_desde_vista, a_tensores
-from .imitacion import preentrenar_imitacion, paso_margen, recompensas_finales
+from .imitacion import preentrenar_imitacion, paso_margen, recompensas_finales, asientos_aprendiz
 from .rivales import PoolRivales, pesos_en
 
 def guardar_checkpoint(policy_net, target_net, optimizer, global_step, episodio, mejor_pts, epsilon, buffer, filepath="/content/drive/MyDrive/SkyjoBot/checkpoint.pt"):
@@ -182,11 +182,24 @@ def entrenar_skyjo(config):
         if pool is not None:
             pool.anadir_instantanea(policy_net, 0)       # la red imitadora es el primer 'checkpoint antiguo'
     
+    # Barajas simétricas (solo con rivales): n episodios seguidos comparten baraja y el aprendiz rota por los n asientos,
+    # así que ve cada mano inicial de cada baraja. Con self-play puro (RIVALES=None) todos los asientos ya aprenden de
+    # cada baraja, y no hace falta.
+    simetrico = pool is not None and bool(config.get('BARAJAS_SIMETRICAS', False))
+    semilla_baraja = None
+    if simetrico:
+        print(f"Barajas simétricas: cada baraja se juega {n} veces con el aprendiz rotando por los asientos")
+    print(f"Recompensa final: referencia = {config.get('RECOMPENSA_REF', 'media')} de los rivales")
+
     for episodio in range(inicio_episodio, n_ep + 1):
+        if simetrico:
+            if semilla_baraja is None or (episodio - 1) % n == 0:
+                semilla_baraja = random.randrange(2 ** 31)
+            env = SkyjoEnv(num_jugadores=n, semilla=semilla_baraja)         # misma semilla = misma baraja y manos iniciales
         env.reset()
         if pool is not None:
             k = min(max(int(config.get('ASIENTOS_APRENDIZ', 1)), 1), n)
-            aprendices = set(random.sample(range(n), k))                    # asiento(s) que aprenden: al azar cada partida
+            aprendices = asientos_aprendiz(episodio, n, k) if simetrico else set(random.sample(range(n), k))
             pesos = pesos_en(config, episodio / n_ep)
             rivales = {s: pool.elegir(pesos) for s in range(n) if s not in aprendices}
         else:
