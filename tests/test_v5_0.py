@@ -143,6 +143,25 @@ def test_entrenamiento_con_barajas_simetricas_y_referencia_mejor_rival(tmp_path)
                BARAJAS_SIMETRICAS=True, RECOMPENSA_REF='mejor')
     v5.entrenar_skyjo(cfg)
     assert os.path.exists(cfg['SAVE_PATH'])
+    import json
+    regs = [json.loads(l) for l in open(os.path.join(cfg['CKPT_DIR'], 'metricas.jsonl'), encoding='utf-8')]
+    assert {r['tipo'] for r in regs} == {'meta', 'imitacion', 'eval', 'train'}
+    ev = [r for r in regs if r['tipo'] == 'eval' and r['jugadores'] == 4]
+    assert {(r['episodio'], r['fase']) for r in ev} >= {(0, 'tras_bc'), (0, 'tras_calibracion'), (8, 'entrenamiento')}
+    assert all(r['dqn']['puntos'] > 0 and r['heuristicos']['puntos'] > 0 for r in ev)
+    assert [r['episodio'] for r in regs if r['tipo'] == 'train'] == [2, 4, 6, 8]
+
+
+def test_registro_de_metricas_escribe_json_estandar(tmp_path):
+    import json
+    from skyjo.v5_0.metricas import RegistroMetricas
+    reg = RegistroMetricas(str(tmp_path / 'sub' / 'metricas.jsonl'))
+    reg.meta({'SAVE_PATH': 'x/modelo.pth', 'RIVALES': {'heuristico': 1.0}}, jugadores_eval=[4, 2])
+    reg.entrenamiento(500, pasos=np.int64(7), loss=np.float32(1.5), pts_rivales=float('nan'), pts_aprendiz=np.float64(30.0))
+    lineas = [json.loads(l, parse_constant=lambda c: (_ for _ in ()).throw(ValueError(c)))        # NaN/inf no son JSON estándar
+              for l in open(tmp_path / 'sub' / 'metricas.jsonl', encoding='utf-8')]
+    assert lineas[0]['run'] == 'modelo' and lineas[0]['config']['RIVALES'] == {'heuristico': 1.0}
+    assert lineas[1]['pasos'] == 7 and lineas[1]['pts_rivales'] is None and lineas[1]['pts_aprendiz'] == 30.0
 
 
 def test_el_buffer_guarda_y_devuelve_observaciones_de_cualquier_n():

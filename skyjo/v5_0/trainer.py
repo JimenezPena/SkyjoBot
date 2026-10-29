@@ -14,6 +14,7 @@ import torch.optim as optim
 
 from skyjo.vista import construir_vista
 from .agents import evaluar_vs_heuristicos, imprimir_vs_heuristicos
+from .metricas import RegistroMetricas
 from .buffer import ReplayBuffer
 from .env import SkyjoEnv, N_ACCIONES
 from .model import SkyjoDQN
@@ -131,12 +132,18 @@ def entrenar_skyjo(config):
 
     decay = (config['EPSILON_END'] / config['EPSILON_START']) ** (1.0 / (0.80 * n_ep))
     hist_pts, hist_apr, hist_loss, t0 = [], [], [], time.time()
+    hist_shaping, hist_final = [], []            # por episodio: recompensa intermedia acumulada / final del aprendiz (para metricas.jsonl)
     eval_n = [n] + [x for x in config.get('EVAL_JUGADORES', []) if x != n]     # el entrenado va primero: decide el mejor checkpoint
     
     # ---- Cargando checkpoint guardado si existe. Comenzar nuevo en caso contrario.
     global_step, inicio_episodio, mejor_pts, ckpt_epsilon = cargar_checkpoint(f"{config['CKPT_DIR']}/checkpoint.pt", policy_net, target_net, optimizer, buffer, device)
     
     epsilon = ckpt_epsilon if ckpt_epsilon is not None else config['EPSILON_START']
+
+    # ---- Métricas por episodio en <CKPT_DIR>/metricas.jsonl (ver metricas.py y comparar_entrenamientos.py)
+    reg = RegistroMetricas(os.path.join(config['CKPT_DIR'], 'metricas.jsonl'))
+    reg.meta(config, run=config.get('RUN_NOMBRE'), jugadores_eval=eval_n, reanudado=inicio_episodio > 1,
+             inicio_episodio=inicio_episodio)
 
     # ---- Rivales: mezcla de heurísticos / red actual / checkpoints (RIVALES=None -> self-play puro, todos aprenden)
     pool, pool_path = None, f"{config['CKPT_DIR']}/pool.pt"
@@ -154,12 +161,14 @@ def entrenar_skyjo(config):
         target_net.load_state_dict(policy_net.state_dict())
         target_net.eval()
         epsilon = config.get('EPSILON_START_IMIT', 0.3)
+        reg.imitacion(acc)
         
         print(f"Imitación completada (acc {acc:.3f}). "
               f"DQN desde epsilon={epsilon:.2f}, buffer={len(buffer)}")
         res = evaluar_vs_heuristicos(policy_net, device, n, config['EVAL_GAMES'], semilla=config.get('EVAL_SEMILLA'))
         imprimir_vs_heuristicos(f"[Tras imitación: 1 DQN vs {n - 1} heurísticos", res)          
     
+        reg.evaluacion(0, n, res, fase='tras_bc')
         # calibrar la escala de Q con TD sobre las demos (política protegida por el margen)
         for _ in range(config.get('CALIBRATION_PRESTEPS', 3000)):
             policy_net.train()
@@ -179,6 +188,7 @@ def entrenar_skyjo(config):
               f"DQN desde epsilon={epsilon:.2f}, buffer={len(buffer)}")
         res = evaluar_vs_heuristicos(policy_net, device, n, config['EVAL_GAMES'], semilla=config.get('EVAL_SEMILLA'))
         imprimir_vs_heuristicos(f"[Tras imitación: 1 DQN vs {n - 1} heurísticos", res)              
+        reg.evaluacion(0, n, res, fase='tras_calibracion')
         if pool is not None:
             pool.anadir_instantanea(policy_net, 0)       # la red imitadora es el primer 'checkpoint antiguo'
     
@@ -235,6 +245,7 @@ def entrenar_skyjo(config):
                 puntos = np.asarray(env.calcular_puntuaciones_finales(), dtype=np.float64)
                 finales = recompensas_finales(puntos, config)
                 hist_pts.append(puntos)
+                hist_final.append(float(finales[sorted(aprendices)].mean()))
                 hist_apr.append((puntos[sorted(aprendices)].mean(),
                                  puntos[[s for s in range(n) if s not in aprendices]].mean() if rivales else float('nan')))
                 if j not in rivales:
@@ -262,6 +273,7 @@ def entrenar_skyjo(config):
             if global_step % config['TARGET_UPDATE_FREQ'] == 0:
                 target_net.load_state_dict(policy_net.state_dict())
 
+        hist_shaping.append(rec_apr)
         epsilon = max(config['EPSILON_END'], epsilon * decay)
 
         if pool is not None and episodio % config.get('POOL_EVERY', 1000) == 0:
@@ -272,15 +284,23 @@ def entrenar_skyjo(config):
             if pool is not None:
                 pa = np.nanmean(np.array(hist_apr[-config['LOG_EVERY']:], dtype=float), axis=0)
                 pts = f"pts aprendiz {pa[0]:5.1f} | rivales {pa[1]:5.1f}"
+                pts_apr, pts_riv = float(pa[0]), float(pa[1])
             else:
-                pts = "pts self-play " + ' / '.join(f'{x:5.1f}' for x in np.mean(hist_pts[-config['LOG_EVERY']:], axis=0))
+                pm = np.mean(hist_pts[-config['LOG_EVERY']:], axis=0)
+                pts = "pts self-play " + ' / '.join(f'{x:5.1f}' for x in pm)
+                pts_apr, pts_riv = float(pm.mean()), None
             print(f"Ep {episodio:>6}/{n_ep} | eps {epsilon:.3f} | pasos {global_step:>8} | {pts} | loss {l:.4f} | "
                   f"Recompensa aprendiz: {rec_apr:6.1f} | {(time.time() - t0) / 60:.1f} min")
+            v = config['LOG_EVERY']
+            reg.entrenamiento(episodio, eps=epsilon, pasos=global_step, minutos=(time.time() - t0) / 60, episodios=v,
+                              pts_aprendiz=pts_apr, pts_rivales=pts_riv, loss=l,
+                              rec_shaping=float(np.mean(hist_shaping[-v:])), rec_final=float(np.mean(hist_final[-v:])))
 
         if episodio % config['EVAL_EVERY'] == 0:
             for k, nj in enumerate(eval_n):
                 res = evaluar_vs_heuristicos(policy_net, device, nj, config['EVAL_GAMES'], semilla=config.get('EVAL_SEMILLA'))
                 imprimir_vs_heuristicos(f"[ep {episodio}] 1 DQN vs {nj - 1} heurísticos", res)
+                reg.evaluacion(episodio, nj, res)
                 if nj == n:
                     pts = res['_dqn']['puntos']
             torch.save(policy_net.state_dict(), f"{config['CKPT_DIR']}/ep{episodio}.pth")
