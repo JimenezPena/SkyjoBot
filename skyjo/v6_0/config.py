@@ -5,7 +5,7 @@
 # ==============================================================================
 CONFIG = {
     'JUGADORES': 4,
-    'NUM_EPISODIOS': 20000,
+    'NUM_EPISODIOS': 30000,
     'BUFFER_CAPACITY': 400000,
     'BATCH_SIZE': 1024,
     'GAMMA': 0.99,
@@ -15,8 +15,8 @@ CONFIG = {
     'EPSILON_END': 0.05,
     'TARGET_UPDATE_FREQ': 1000,
     'WARMUP_STEPS': 2000,
-    'RECOMPENSA_FINAL': 5.0,     # recompensa final = 1.5 * (media de puntos de los rivales - mis puntos)
-    'RECOMPENSA_VICTORIA': 20.0,  # extra por ganar: V * (victoria - 1/n); prueba 15-30 (los puntos suelen valer ~±20)
+    'RECOMPENSA_FINAL': 1.5,     # recompensa final = 1.5 * (media de puntos de los rivales - mis puntos)
+    'RECOMPENSA_VICTORIA': 5.0,  # extra por ganar: V * (victoria - 1/n); prueba 15-30 (los puntos suelen valer ~±20)
     'RECOMPENSA_REF': 'mejor',   # referencia de la recompensa final: 'media' = mejor que la media de rivales; 'mejor' = solo positiva si ganas (con 'mejor' baja RECOMPENSA_VICTORIA)
     'BARAJAS_SIMETRICAS': False,  # con RIVALES: n episodios seguidos con la misma baraja y el aprendiz rotando por los n asientos
     'SAVE_EVERY': 1000,
