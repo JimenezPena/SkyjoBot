@@ -1,5 +1,6 @@
 """Entrena una versión:  python train.py --version v5_0 --out-dir /content/drive/MyDrive/skyjo
 Sobrescribir hiperparámetros:  --set NUM_EPISODIOS=5000 REWARD_SCALE=1/25
+Antes de entrenar añade la configuración usada a <CKPT_DIR>/config.jsonl (avisa si una reanudación la cambia).
 Al terminar escribe <SAVE_PATH>.meta.json (versión, commit, CONFIG y evaluación vs heurístico)."""
 import argparse
 import ast
@@ -10,6 +11,8 @@ import subprocess
 import time
 
 import torch
+
+from skyjo.registro_config import registrar
 
 
 def _valor(s):
@@ -48,6 +51,9 @@ def main():
         if k in cfg and not os.path.isabs(cfg[k]):
             cfg[k] = os.path.join(args.out_dir, cfg[k])
     os.makedirs(os.path.dirname(os.path.abspath(cfg['SAVE_PATH'])), exist_ok=True)
+    if 'CKPT_DIR' in cfg:                                   # configuración usada (con los --set) antes de entrenar
+        ruta_cfg, _ = registrar(cfg['CKPT_DIR'], args.version, cfg, m.CONFIG, commit=_git("describe", "--tags", "--always", "--dirty"))
+        print(f"[config] registrada en {ruta_cfg}")
 
     t0 = time.time()
     m.entrenar_skyjo(cfg)
