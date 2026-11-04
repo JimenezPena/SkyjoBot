@@ -8,6 +8,8 @@ skyjo/
   v4_2/         Dueling Double DQN, 26 acciones (modelo 4.1 + heurístico y duelos cada 2500 episodios)
   v5_0/         observación y red independientes del nº de jugadores (2-8), desde la vista pública; entrenamiento self-play de
                 4 jugadores, con imitación previa del heurístico (imitacion.py), pérdida de margen DQfD y checkpoints reanudables
+  v6_0/         copia de v5_0 (mismo entorno, observación y entrenamiento) con otra red: grafo sobre las 12 cartas (aristas = misma
+                columna) y cabezas de acción por carta; solo cambia model.py, para comparar la red a igualdad de todo lo demás
   niveles.py    registro de niveles: cargar_nivel("nombre") -> agente válido con el entorno de cualquier versión
   vista.py      vista pública de un asiento (solo información visible) y adaptadores
   agentes.py    interfaz de agente agente(vista)->acción: humano, ruido epsilon
