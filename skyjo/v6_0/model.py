@@ -27,7 +27,9 @@ class CapaColumna(nn.Module):
         self.norma = nn.LayerNorm(h)
 
     def forward(self, x, g=None):                       # x: [M, 3, 4, h]; g: [M, h] o None
-        msg = self.par(torch.cat([x, torch.roll(x, 1, dims=1)], -1)) + self.par(torch.cat([x, torch.roll(x, 2, dims=1)], -1))
+        # las 2 vecinas de la columna (filas desplazadas 1 y 2) en una sola llamada: menos operaciones por paso
+        vecinas = torch.stack([torch.roll(x, 1, dims=1), torch.roll(x, 2, dims=1)])          # [2, M, 3, 4, h]
+        msg = self.par(torch.cat([x.expand_as(vecinas), vecinas], -1)).sum(dim=0)
         z = self.propio(x) + msg
         if g is not None:
             z = z + self.ctx(g)[:, None, None, :]
@@ -72,13 +74,14 @@ class SkyjoDQN(nn.Module):
 
     def forward(self, obs):
         B = obs['escalares'].size(0)
-        izq = torch.relu(self.p_izq(self._resumen(self._grafo(obs['tablero_izq']))))
-        der = torch.relu(self.p_der(self._resumen(self._grafo(obs['tablero_der']))))
-        otros = obs['tableros_otros']                           # [B, k, 2, 3, 4], k puede ser 0
-        k = otros.size(1)
-        if k:
-            e = torch.relu(self.p_otros(self._resumen(self._grafo(otros.reshape(B * k, *otros.shape[2:]))))).view(B, k, -1)
-            pool = torch.cat([e.mean(dim=1), e.max(dim=1).values], dim=1)
+        # los tableros rivales (izq, der y los 'otros') pasan por el grafo juntos, en un solo batch
+        rivales = torch.cat([obs['tablero_izq'][:, None], obs['tablero_der'][:, None], obs['tableros_otros']], dim=1)
+        e = self._resumen(self._grafo(rivales.flatten(0, 1))).view(B, rivales.size(1), -1)      # [B, 2+k, 2h]
+        izq = torch.relu(self.p_izq(e[:, 0]))
+        der = torch.relu(self.p_der(e[:, 1]))
+        if e.size(1) > 2:                                       # k = n-3 'otros' (puede ser 0)
+            o = torch.relu(self.p_otros(e[:, 2:]))
+            pool = torch.cat([o.mean(dim=1), o.max(dim=1).values], dim=1)
         else:
             pool = izq.new_zeros(B, 2 * izq.size(1))
         g = self.fc_ctx(torch.cat([self.fc_escalares(obs['escalares']), izq, der, pool], dim=1))
