@@ -127,3 +127,20 @@ def test_entrenamiento_mini_corre_guarda_y_el_modelo_es_usable_con_4_y_2_jugador
         net = v6.SkyjoDQN(); net.load_state_dict(torch.load(cfg['SAVE_PATH']))
         r = v6.evaluar_vs_heuristicos(net, "cpu", n, n_partidas=n)
         assert r['_global']['truncadas'] == 0 and r['_dqn']['ilegales'] == 0
+
+
+def test_rival_externo_puede_ser_v5_o_v6(tmp_path):
+    from skyjo.heuristico import AgenteHeuristico
+    from skyjo.partida import jugar_partida
+    from skyjo.v5_0 import SkyjoDQN as V5
+    from skyjo.v6_0.rivales import PoolRivales
+    rutas = []
+    for nombre, cls in (('v5.pth', V5), ('v6.pth', SkyjoDQN)):
+        torch.manual_seed(0)
+        torch.save(cls().state_dict(), tmp_path / nombre); rutas.append(str(tmp_path / nombre))
+    pool = PoolRivales(SkyjoDQN(), 'cpu', 0.05, 5, rutas)
+    assert len(pool) == 2
+    assert [type(a.base.model).__module__.split('.')[-2] for a in pool.fijos] == ['v5_0', 'v6_0']
+    for ag in pool.fijos:                                   # ambos juegan una partida completa contra heurísticos
+        r = jugar_partida([ag] + [AgenteHeuristico() for _ in range(3)], semilla=0)
+        assert r is not None

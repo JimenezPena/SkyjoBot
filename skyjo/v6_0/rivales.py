@@ -4,7 +4,7 @@ Cada asiento que no aprende en una partida se sortea entre tres tipos (pesos en 
   'heuristico'  el bot heurístico (baseline)
   'actual'      la red que se está entrenando, jugando en modo greedy (con un poco de ruido: RIVAL_EPSILON)
   'checkpoint'  una copia congelada de la red de un momento anterior (se guarda una cada POOL_EVERY episodios; se
-                conservan las POOL_MAX últimas) o un modelo externo de RIVALES_CKPT (p. ej. los pesos de la 5.1)
+                conservan las POOL_MAX últimas) o un modelo externo de RIVALES_CKPT (pesos de la v6.0 o de la v5.0, p. ej. modelos/v5_6.pth)
 Si aún no hay checkpoints, 'checkpoint' se sustituye por 'heuristico'. Con RIVALES_FIN los pesos se interpolan
 linealmente durante el entrenamiento (p. ej. de casi todo heurísticos a más self-play)."""
 import random
@@ -16,6 +16,7 @@ from skyjo.agentes import ConRuido
 from skyjo.heuristico import AgenteHeuristico
 from .agente import AgenteDQN
 from .model import SkyjoDQN
+from skyjo.v5_0.model import SkyjoDQN as SkyjoDQN_v5      # misma observación y acciones: sirve de rival fijo
 
 TIPOS = ('heuristico', 'actual', 'checkpoint')
 
@@ -36,8 +37,10 @@ class PoolRivales:
         self.congelados = deque(maxlen=int(max_checkpoints))                              # instantáneas propias
 
     def _cargar_red(self, ruta):
-        net = SkyjoDQN().to(self.device)
-        net.load_state_dict(torch.load(ruta, map_location=self.device))
+        """Carga un rival externo: red v6.0 o, si los pesos son de la v5.0 (capa 'conv1'), la red v5.0 (misma observación)."""
+        sd = torch.load(ruta, map_location=self.device)
+        net = (SkyjoDQN_v5 if 'conv1.weight' in sd else SkyjoDQN)().to(self.device)
+        net.load_state_dict(sd)
         return net.eval()
 
     def _agente(self, net, nombre):
