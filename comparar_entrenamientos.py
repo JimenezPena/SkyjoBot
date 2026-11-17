@@ -20,7 +20,7 @@ import sys
 
 COLORES = ['#0072B2', '#E69F00', '#009E73', '#CC79A7', '#56B4E9', '#D55E00', '#F0E442', '#000000']   # Okabe-Ito
 MARCAS = ['o', 's', '^', 'D', 'v', 'P', 'X', '*']
-METRICAS = ('puntos', 'posicion', 'winrate', 'diferencia', 'entrenamiento')
+METRICAS = ('puntos', 'posicion', 'winrate', 'diferencia', 'cierra', 'ocultas', 'turnos', 'entrenamiento')
 
 # ------------------------------------------------------------------------------------------ lectura
 RE_EVAL = re.compile(r'^== \[ep (\d+)\] 1 DQN vs (\d+) heur')
@@ -163,6 +163,11 @@ EXTRACTORES = {
     'diferencia': (lambda e: ((e['dqn']['puntos'] - e['heuristicos']['puntos']) if e['heuristicos'].get('puntos') is not None
                               and e['dqn'].get('puntos') is not None else None, None),
                    'Puntos DQN − puntos heurísticos (menos es mejor)', 'cero'),
+    # solo en los metricas.jsonl nuevos (los logs de texto antiguos no las traen)
+    'cierra': (lambda e: (None if e['dqn'].get('cierra') is None else 100 * e['dqn']['cierra'], None),
+               'Rondas que cierra el DQN (%)', 'winrate'),
+    'ocultas': (lambda e: (e['dqn'].get('ocultas_cierre'), None), 'Cartas boca abajo del DQN cuando cierra otro', None),
+    'turnos': (lambda e: (e['dqn'].get('turnos_cierra'), None), 'Turnos del DQN hasta cerrar (cuando cierra él)', None),
 }
 
 
@@ -286,7 +291,8 @@ def main(argv=None):
     ap.add_argument('--run', action='append', required=True, metavar='NOMBRE=RUTA', help='repetible; RUTA = metricas.jsonl, carpeta o log de texto')
     ap.add_argument('--salida', default='plots_comparativa', help='carpeta de salida (PNG + evaluaciones.csv)')
     ap.add_argument('--jugadores', type=int, nargs='+', default=[4, 2], help='nº de asientos de las evaluaciones a dibujar')
-    ap.add_argument('--metricas', nargs='+', choices=METRICAS, default=list(METRICAS))
+    ap.add_argument('--metricas', nargs='+', choices=METRICAS, default=None,
+                    help='por defecto todas las que tengan datos (cierra/ocultas/turnos solo existen en los metricas.jsonl nuevos)')
     ap.add_argument('--desde', type=int, default=0, help='episodio mínimo')
     ap.add_argument('--hasta', type=int, default=None, help='episodio máximo (p. ej. para comparar con una ejecución más corta)')
     ap.add_argument('--suavizado', type=int, default=1, help='media móvil sobre K evaluaciones (1 = sin suavizar)')
@@ -308,7 +314,12 @@ def main(argv=None):
     import matplotlib.pyplot as plt
     _estilo(plt)
     os.makedirs(a.salida, exist_ok=True)
-    for metrica in a.metricas:
+    def hay_datos(metrica):
+        if metrica == 'entrenamiento':
+            return True
+        return any(serie(run, n, EXTRACTORES[metrica][0]) for run in runs for n in a.jugadores)
+
+    for metrica in (a.metricas or [m for m in METRICAS if hay_datos(m)]):
         fig = fig_entrenamiento(plt, runs, nombres, a) if metrica == 'entrenamiento' else fig_eval(plt, runs, nombres, metrica, a.jugadores, a)
         destino = os.path.join(a.salida, f'{metrica}.{a.formato}')
         fig.savefig(destino, dpi=140)

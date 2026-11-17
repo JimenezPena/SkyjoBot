@@ -31,6 +31,9 @@ class Resultado:
     cerrador: Optional[int]
     extra: dict = field(default_factory=dict)
     penalizada: bool = False          # el cerrador no tenía la puntuación más baja y se le dobló
+    ocultas_cierre: Optional[List[int]] = None   # cartas boca abajo de cada asiento en el momento de cerrar la ronda
+                                                 # (-1 para quien cierra); None si no llegó a cerrarse
+    turnos_cierre: Optional[int] = None          # turnos que jugó el cerrador hasta cerrar (cada turno = 2 decisiones)
 
 
 def jugar_partida(agentes, motor=None, max_pasos=3000, on_paso=None, semilla=None):
@@ -57,6 +60,7 @@ def _jugar_partida(agentes, motor, max_pasos, on_paso, semilla):
     env = (motor or _motor())(num_jugadores=n, **({} if semilla is None else {'semilla': semilla}))
     env.reset()
     ilegales, pasos = [0] * n, 0
+    por_asiento, cierre = [0] * n, None
     while not env.game_over and pasos < max_pasos:
         j = env.turno_actual
         vista = construir_vista(env, j)
@@ -68,6 +72,10 @@ def _jugar_partida(agentes, motor, max_pasos, on_paso, semilla):
             on_paso(j, agentes[j], vista, a)
         env.step(a)
         pasos += 1
+        por_asiento[j] += 1
+        if cierre is None and env.cerrador_id is not None:       # justo al cerrar: aún quedan cartas boca abajo en los demás
+            c = env.cerrador_id
+            cierre = ([-1 if k == c else int((env.tableros[k, :, :, 1] == 0).sum()) for k in range(n)], por_asiento[c] // 2)
     truncada = not env.game_over
     columnas = [int((env.tableros[k, :, :, 1] == -1).sum()) // 3 for k in range(n)]   # antes de destapar todo
     puntos = [int(p) for p in env.calcular_puntuaciones_finales()]
@@ -77,7 +85,8 @@ def _jugar_partida(agentes, motor, max_pasos, on_paso, semilla):
     extra = {'regalos': list(env.regalos)} if hasattr(env, 'regalos') else {}
     return Resultado(puntos=puntos, posiciones=[1 + sum(q < p for q in puntos) for p in puntos],
                      ganadores=[k for k, p in enumerate(puntos) if p == mejor], pasos=pasos, truncada=truncada,
-                     ilegales=ilegales, columnas=columnas, cerrador=env.cerrador_id, extra=extra, penalizada=penalizada)
+                     ilegales=ilegales, columnas=columnas, cerrador=env.cerrador_id, extra=extra, penalizada=penalizada,
+                     ocultas_cierre=None if cierre is None else cierre[0], turnos_cierre=None if cierre is None else cierre[1])
 
 
 def _nombres(agentes):

@@ -12,7 +12,8 @@ from .agente import AgenteDQN
 
 
 def _acum():
-    return dict(partidas=0, victorias=0.0, puntos=0.0, puntos2=0.0, posicion=0.0, columnas=0.0, ilegales=0)
+    return dict(partidas=0, victorias=0.0, puntos=0.0, puntos2=0.0, posicion=0.0, columnas=0.0, ilegales=0,
+                cerradas=0, cierra=0, turnos_cierra=0.0, ocultas=0.0, n_ocultas=0)
 
 
 def _sumar(a, r, k):
@@ -23,6 +24,14 @@ def _sumar(a, r, k):
     a['posicion'] += r.posiciones[k]
     a['columnas'] += r.columnas[k]
     a['ilegales'] += r.ilegales[k]
+    if r.ocultas_cierre is not None:                      # la ronda llegó a cerrarse
+        a['cerradas'] += 1
+        if r.cerrador == k:
+            a['cierra'] += 1
+            a['turnos_cierra'] += r.turnos_cierre
+        else:
+            a['ocultas'] += r.ocultas_cierre[k]            # cartas que le quedaban boca abajo cuando otro cerró
+            a['n_ocultas'] += 1
 
 
 def _resumen(a):
@@ -30,7 +39,10 @@ def _resumen(a):
     media = a['puntos'] / m
     var = max(a['puntos2'] / m - media ** 2, 0.0)
     return dict(partidas=a['partidas'], winrate=a['victorias'] / m, puntos=media, puntos_ee=(var / m) ** 0.5,
-                posicion=a['posicion'] / m, columnas=a['columnas'] / m, ilegales=a['ilegales'])
+                posicion=a['posicion'] / m, columnas=a['columnas'] / m, ilegales=a['ilegales'],
+                cierra=a['cierra'] / a['cerradas'] if a['cerradas'] else None,                  # fracción de rondas cerradas que cierra
+                ocultas_cierre=a['ocultas'] / a['n_ocultas'] if a['n_ocultas'] else None,         # ocultas medias cuando cierra otro
+                turnos_cierra=a['turnos_cierra'] / a['cierra'] if a['cierra'] else None)          # turnos que tarda cuando cierra él
 
 
 def evaluar_vs_heuristicos(net, device="cpu", n_jugadores=4, n_partidas=300, semilla=None):
@@ -58,11 +70,20 @@ def evaluar_vs_heuristicos(net, device="cpu", n_jugadores=4, n_partidas=300, sem
     return res
 
 
+def _linea_cierre(d, h):
+    def f(x, fmt, suf=''):
+        return 'n/d' if x is None else format(x, fmt) + suf
+    return (f"cierre: DQN cierra {f(d.get('cierra') and 100 * d['cierra'], '.1f', '%')} (heurístico {f(h.get('cierra') and 100 * h['cierra'], '.1f', '%')} c/u) | "
+            f"ocultas cuando cierra otro: DQN {f(d.get('ocultas_cierre'), '.2f')} (heur. {f(h.get('ocultas_cierre'), '.2f')}) | "
+            f"turnos hasta cerrar: DQN {f(d.get('turnos_cierra'), '.1f')} (heur. {f(h.get('turnos_cierra'), '.1f')})")
+
+
 def imprimir_vs_heuristicos(titulo, res):
     print(f"== {titulo} ==")
     imprimir_evaluacion(res)
     d = res['_dqn']
     print(f"puntos medios DQN: {d['puntos']:.2f} ± {d['puntos_ee']:.2f}  (heurísticos {res['heuristicos']['puntos']:.2f})")
+    print(_linea_cierre(d, res['heuristicos']))
 
 
 def evaluar_final(net, device, n_partidas, n_jugadores=(4, 2), semilla=None):
